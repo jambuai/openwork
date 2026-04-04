@@ -1,6 +1,6 @@
 {
-  "name": "openwork",
-  "version": "0.1.4",
+  "name": "@jgabriellima/openwork",
+  "version": "0.2.0",
   "description": "Agentic coding CLI that works with any OpenAI-compatible LLM — GPT-4o, DeepSeek, Gemini, Ollama, and 200+ models",
   "type": "module",
   "bin": {
@@ -17,18 +17,7 @@
     "build": "bun run scripts/build.ts",
     "dev": "bun run build && node dist/cli.mjs",
     "dev:profile": "bun run scripts/provider-launch.ts",
-    "dev:profile:fast": "bun run scripts/provider-launch.ts auto --fast --bare",
-    "dev:codex": "bun run scripts/provider-launch.ts codex",
-    "dev:openai": "bun run scripts/provider-launch.ts openai",
-    "dev:gemini": "bun run scripts/provider-launch.ts gemini",
-    "dev:ollama": "bun run scripts/provider-launch.ts ollama",
-    "dev:ollama:fast": "bun run scripts/provider-launch.ts ollama --fast --bare",
     "profile:init": "bun run scripts/provider-bootstrap.ts",
-    "profile:codex": "bun run profile:init -- --provider codex --model codexplan",
-    "profile:fast": "bun run profile:init -- --provider ollama --model llama3.2:3b",
-    "profile:code": "bun run profile:init -- --provider ollama --model qwen2.5-coder:7b",
-    "dev:fast": "bun run profile:fast && bun run dev:ollama:fast",
-    "dev:code": "bun run profile:code && bun run dev:profile",
     "start": "node dist/cli.mjs",
     "typecheck": "tsc --noEmit",
     "smoke": "bun run build && node dist/cli.mjs --version",
@@ -123,7 +112,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jgabriellima/openwork"
+    "url": "git+https://github.com/jgabriellima/openwork.git"
+  },
+  "homepage": "https://github.com/jgabriellima/openwork#readme",
+  "bugs": {
+    "url": "https://github.com/jgabriellima/openwork/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "openwork",

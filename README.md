@@ -36,53 +36,59 @@ The rest of the stack is unaware a different model is running underneath.
 
 ## Install
 
-The **unscoped** npm package name `openwork` points at a **different project** (other binary layout). This repo is installed from **source** with **Bun** (the bundle step uses `bun run scripts/build.ts`).
+Published package: **`@jgabriellima/openwork`**. The **unscoped** name `openwork` on npm is a **different** project — do not use `npm install -g openwork` for this repository.
 
-### Option A: One-line installer (recommended)
+### Option A: npm global (recommended)
 
-**macOS / Linux / Git Bash (Windows)** — needs [Git](https://git-scm.com/), [Node.js 20+](https://nodejs.org/), and [Bun](https://bun.sh):
+Requires [Node.js 20+](https://nodejs.org/) (includes npm):
+
+```bash
+npm install -g @jgabriellima/openwork@latest
+```
+
+Then run `openwork configure` once (see below). If `openwork` is not found, add your npm global bin directory to `PATH` (the one-line installer below can do that for you).
+
+### Option B: One-line installer (npm by default)
+
+By default the script runs **`npm install -g @jgabriellima/openwork@latest`** and, if needed, appends your **npm global bin** to `PATH` in your shell rc (idempotent marker). **Node + npm only** — no Git or Bun.
+
+**macOS / Linux / Git Bash (Windows):**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jgabriellima/openwork/main/scripts/install-openwork.sh | bash
 ```
 
-Clone defaults to `~/.openwork-source`, then `bun install`, `bun run build`, `npm link`. Override clone dir: `OPENWORK_INSTALL_DIR=/path`.
-
-If the terminal window **closes immediately** (common on Windows when double‑clicking a script), open **Terminal / PowerShell / cmd**, paste the command there, or run with a pause:
-
-```bash
-OPENWORK_PAUSE=1 bash -c 'curl -fsSL https://raw.githubusercontent.com/jgabriellima/openwork/main/scripts/install-openwork.sh | bash'
-```
-
-**Windows (PowerShell)** — run in a window you keep open (do **not** double‑click):
+**Windows (PowerShell)** — keep the window open (do not double‑click):
 
 ```powershell
 irm https://raw.githubusercontent.com/jgabriellima/openwork/main/scripts/install-openwork.ps1 | iex
 ```
 
-Optional: `$env:OPENWORK_PAUSE=1` before `iex` to pause at the end.
+Environment variables:
 
-### Option A2: npm global (only if you publish this repo yourself)
+| Variable | Effect |
+|----------|--------|
+| `OPENWORK_INSTALL_CHANNEL=source` | Clone repo, `bun install` / `bun run build`, launcher under `~/.local/bin` (needs Git + Bun + Node). |
+| `OPENWORK_NPM_PACKAGE` | Override package (default `@jgabriellima/openwork`). |
+| `OPENWORK_NPM_TAG` | Dist-tag (default `latest`). |
+| `OPENWORK_SKIP_PATH_HOOK=1` | Do not edit shell rc / user PATH. |
+| `OPENWORK_PAUSE=1` | Wait for Enter before exit (helps if the window closes too fast). |
 
-After you publish under **your** scope (e.g. `@yourscope/openwork`) with `dist/cli.mjs` in the tarball:
+If the terminal **closes immediately**, open a real shell, paste the command, or use `OPENWORK_PAUSE=1` (bash) / `$env:OPENWORK_PAUSE=1` (PowerShell).
 
-```bash
-npm install -g @yourscope/openwork
-```
-
-Do **not** rely on `npm install -g openwork` for this repository.
-
-### Option B: From source (requires Bun)
+### Option C: From source (contributors / bleeding edge)
 
 ```bash
 git clone https://github.com/jgabriellima/openwork.git
 cd openwork
 bun install
 bun run build
-npm link  # optional global install
+node dist/cli.mjs --version
 ```
 
-### Option C: Run directly with Bun
+Or use the one-line installer with `OPENWORK_INSTALL_CHANNEL=source`.
+
+### Option D: Run directly with Bun (development)
 
 ```bash
 git clone https://github.com/jgabriellima/openwork.git
@@ -90,6 +96,15 @@ cd openwork
 bun install
 bun run dev
 ```
+
+### Publishing (maintainers)
+
+1. Bump `"version"` in `package.json` on `main` and push.
+2. Tag and push, e.g. `git tag v0.2.0 && git push origin v0.2.0` (tag should match the release version).
+3. GitHub → **Releases** → create a release from that tag and **publish** it. The workflow [Publish npm](.github/workflows/publish-npm.yml) runs `npm publish` using the `NPM_TOKEN` secret (npm [Automation token](https://www.npmjs.com/settings/~/tokens)).
+4. Manual publish from `main`: Actions → **Publish npm** → **Run workflow** (same secret; version is whatever is in `package.json` on `main`).
+
+`workflow_dispatch` only runs on `refs/heads/main` so ad-hoc publishes stay predictable.
 
 ---
 
@@ -306,38 +321,26 @@ Notes:
 - Local providers (e.g. `http://localhost:11434/v1`) run without `OPENAI_API_KEY`.
 - Codex profiles validate `CODEX_API_KEY` or the Codex CLI auth file and probe `POST /responses` instead of `GET /models`.
 
-### Provider Launch Profiles
+### Provider launch (repo dev only)
+
+End-user configuration is `openwork configure` or env vars — see above. For **working from this repository**, you can write `.openwork-profile.json` and launch via `provider-launch.ts`:
 
 ```bash
 # one-time profile bootstrap (auto-detect ollama, otherwise openai)
 bun run profile:init
 
-# codex bootstrap (defaults to codexplan and ~/.codex/auth.json)
-bun run profile:codex
-
-# openai bootstrap with explicit key
+# examples: codex / openai / ollama with explicit options
+bun run profile:init -- --provider codex --model codexplan
 bun run profile:init -- --provider openai --api-key sk-...
-
-# ollama bootstrap with custom model
 bun run profile:init -- --provider ollama --model llama3.1:8b
 
-# codex bootstrap with a fast model alias
-bun run profile:init -- --provider codex --model codexspark
-
-# launch using persisted profile (.openwork-profile.json)
+# launch using .openwork-profile.json (optional: pick provider + flags after --)
 bun run dev:profile
-
-# codex profile (uses CODEX_API_KEY or ~/.codex/auth.json)
-bun run dev:codex
-
-# OpenAI profile (requires OPENAI_API_KEY in your shell)
-bun run dev:openai
-
-# Ollama profile (defaults: localhost:11434, llama3.1:8b)
-bun run dev:ollama
+bun run dev:profile -- ollama
+bun run dev:profile -- ollama --fast --bare
 ```
 
-`dev:openai`, `dev:ollama`, and `dev:codex` run `doctor:runtime` first and only launch if checks pass.
+`dev:profile` runs `doctor:runtime` first and only starts the CLI if checks pass.
 
 ---
 

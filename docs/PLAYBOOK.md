@@ -17,14 +17,11 @@ Run this in your project root:
 bun run dev:profile
 ```
 
-For quick switches:
+For quick switches (write profile, then launch):
 
 ```bash
-# low latency preset
-bun run dev:fast
-
-# better coding quality preset
-bun run dev:code
+bun run profile:init -- --provider ollama --model llama3.2:3b && bun run dev:profile -- ollama --fast --bare
+bun run profile:init -- --provider ollama --model qwen2.5-coder:7b && bun run dev:profile
 ```
 
 If everything is healthy, OpenWork starts directly.
@@ -170,11 +167,11 @@ bun run profile:init -- --provider ollama --model qwen2.5-coder:14b
 bun run dev:profile
 ```
 
-Preset shortcuts already configured:
+Preset-style models (same as `make profile-fast` / `make profile-code`):
 
 ```bash
-bun run profile:fast   # llama3.2:3b
-bun run profile:code   # qwen2.5-coder:7b
+bun run profile:init -- --provider ollama --model llama3.2:3b
+bun run profile:init -- --provider ollama --model qwen2.5-coder:7b
 ```
 
 ## 8. Practical Prompt Playbook (Copy/Paste)
@@ -246,8 +243,8 @@ bun run profile:init -- --provider openai --api-key sk-... --model gpt-4o
 
 # launch
 bun run dev:profile
-bun run dev:ollama
-bun run dev:openai
+bun run dev:profile -- ollama
+bun run dev:profile -- openai
 
 # diagnostics
 bun run doctor:runtime

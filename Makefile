@@ -1,6 +1,15 @@
-.PHONY: setup install build start dev doctor smoke check clean
+.PHONY: setup install build start dev doctor smoke check clean \
+	openwork-install openwork-install-remote openwork-uninstall openwork-purge \
+	claude claude-revert
 
 ENV_FILE := .env
+
+# OpenWork CLI distribution (same behavior as the curl one-liner; override OPENWORK_* as in README)
+OPENWORK_NPM_PACKAGE ?= @jgabriellima/openwork
+OPENWORK_REPO ?= jgabriellima/openwork
+INSTALL_SCRIPT_URL ?= https://raw.githubusercontent.com/$(OPENWORK_REPO)/main/scripts/install-openwork.sh
+OPENWORK_LOCAL_BIN ?= $(HOME)/.local/bin
+OPENWORK_SOURCE_DIR ?= $(HOME)/.openwork-source
 
 # Load .env if it exists
 ifneq (,$(wildcard $(ENV_FILE)))
@@ -15,6 +24,35 @@ setup: install build
 
 install:
 	bun install
+
+# Same installer as: curl -fsSL …/install-openwork.sh | bash (uses this repo’s copy of the script).
+openwork-install:
+	bash scripts/install-openwork.sh
+
+# One-liner from GitHub default branch (use OPENWORK_REPO / fork branch via URL override).
+openwork-install-remote:
+	curl -fsSL $(INSTALL_SCRIPT_URL) | bash
+
+# npm global + ~/.local/bin launcher from source installs; does not edit shell rc (remove openwork-install markers by hand if you want).
+openwork-uninstall:
+	@echo "Removing global npm package ($(OPENWORK_NPM_PACKAGE)) if present..."
+	-npm uninstall -g $(OPENWORK_NPM_PACKAGE) 2>/dev/null || true
+	@echo "Removing source launcher in $(OPENWORK_LOCAL_BIN) if present..."
+	rm -f $(OPENWORK_LOCAL_BIN)/openwork $(OPENWORK_LOCAL_BIN)/.openwork-root
+	@echo "openwork-uninstall: done (PATH hooks in rc files were not changed)."
+
+# Also deletes the clone used by OPENWORK_INSTALL_CHANNEL=source (destructive).
+openwork-purge: openwork-uninstall
+	rm -rf $(OPENWORK_SOURCE_DIR)
+	@echo "openwork-purge: removed $(OPENWORK_SOURCE_DIR)"
+
+# Shell shim: `claude` → openwork (function in ~/.zshrc etc.). Revert with claude-revert.
+# Dev without global openwork: make claude OPENWORK_BIN="$(CURDIR)/bin/openwork"
+claude:
+	OPENWORK_BIN="$(OPENWORK_BIN)" bash scripts/claude-openwork-shim.sh add
+
+claude-revert:
+	bash scripts/claude-openwork-shim.sh remove
 
 build:
 	bun run build
@@ -47,10 +85,10 @@ profile-ollama:
 	bun run profile:init -- --provider ollama --model llama3.1:8b
 
 profile-fast:
-	bun run profile:fast
+	bun run profile:init -- --provider ollama --model llama3.2:3b
 
 profile-code:
-	bun run profile:code
+	bun run profile:init -- --provider ollama --model qwen2.5-coder:7b
 
 # ── Misc ───────────────────────────────────────────────────────────────────────
 
@@ -63,6 +101,12 @@ help:
 	@echo ""
 	@echo "  setup           Install deps and build (first-time setup)"
 	@echo "  install         Install bun dependencies"
+	@echo "  openwork-install         Run scripts/install-openwork.sh (same as one-liner; set OPENWORK_INSTALL_CHANNEL=source for clone+Bun)"
+	@echo "  openwork-install-remote  curl install-openwork.sh from GitHub main"
+	@echo "  openwork-uninstall       npm uninstall -g + remove ~/.local/bin launcher"
+	@echo "  openwork-purge           openwork-uninstall + rm -rf ~/.openwork-source"
+	@echo "  claude            Install shell shim: claude → openwork (see OPENWORK_BIN in Makefile comment)"
+	@echo "  claude-revert     Remove that shim from shell rc files"
 	@echo "  build           Compile TypeScript -> dist/"
 	@echo "  start           Build and launch the CLI (env from .env)"
 	@echo "  dev             Launch via dev:profile (uses .openwork-profile.json)"
