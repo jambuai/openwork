@@ -4,7 +4,10 @@ import { render } from '../ink.js'
 import { KeybindingSetup } from '../keybindings/KeybindingProviderSetup.js'
 import { AppStateProvider } from '../state/AppState.js'
 import { enableConfigs } from '../utils/config.js'
-import { OPENWORK_DIR } from '../utils/openworkProviderStore.js'
+import {
+  applyOpenWorkProviderFromArgvAndStore,
+  OPENWORK_DIR,
+} from '../utils/openworkProviderStore.js'
 import { getBaseRenderOptions } from '../utils/renderOptions.js'
 import { OpenWorkAppearanceWizard } from './openWorkAppearanceUI.js'
 
@@ -20,6 +23,8 @@ export async function runOpenWorkAppearance(): Promise<void> {
     process.exit(1)
   }
 
+  // Merge ~/.openwork + CLI flags into env so AI banner gen sees the same keys as the main CLI.
+  applyOpenWorkProviderFromArgvAndStore()
   enableConfigs()
 
   await new Promise<void>(resolve => {

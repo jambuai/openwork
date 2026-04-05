@@ -21,7 +21,7 @@ export const OPENWORK_ACCENT_PRESETS = [
 
 export type OpenWorkAccentPreset = (typeof OPENWORK_ACCENT_PRESETS)[number]['value']
 
-export type OpenWorkAsciiPreset = 'full' | 'minimal' | 'none'
+export type OpenWorkAsciiPreset = 'full' | 'minimal' | 'none' | 'custom'
 
 export type OpenWorkAppearanceV1 = {
   version: 1
@@ -29,7 +29,13 @@ export type OpenWorkAppearanceV1 = {
   welcomePrefix: string
   accentColor: OpenWorkAccentPreset
   asciiPreset: OpenWorkAsciiPreset
+  /** When `asciiPreset` is `custom`, these lines render below the title (max width/line count enforced). */
+  asciiArtLines: string[]
 }
+
+/** Limits for custom ASCII pasted or stored in appearance.json */
+export const OPENWORK_ASCII_MAX_LINES = 22
+export const OPENWORK_ASCII_MAX_COLS = 78
 
 const DEFAULT_APPEARANCE: OpenWorkAppearanceV1 = {
   version: 1,
@@ -37,6 +43,7 @@ const DEFAULT_APPEARANCE: OpenWorkAppearanceV1 = {
   welcomePrefix: 'Welcome to',
   accentColor: 'claude',
   asciiPreset: 'full',
+  asciiArtLines: [],
 }
 
 const ACCENT_SET = new Set<string>(
@@ -63,8 +70,37 @@ export function normalizeAccent(value: string): OpenWorkAccentPreset {
 }
 
 export function normalizeAsciiPreset(value: string): OpenWorkAsciiPreset {
-  if (value === 'minimal' || value === 'none') return value
+  if (value === 'minimal' || value === 'none' || value === 'custom') return value
   return 'full'
+}
+
+/** Strip control chars and clamp line length (allows Unicode box-drawing etc.). */
+export function sanitizeAsciiArtLine(s: string, maxLen: number = OPENWORK_ASCII_MAX_COLS): string {
+  return s
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '')
+    .replace(/\t/g, '  ')
+    .trimEnd()
+    .slice(0, maxLen)
+}
+
+/** Parse a pasted block (e.g. from wizard) into sanitized lines. */
+export function parseAsciiArtPaste(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map(line => sanitizeAsciiArtLine(line))
+    .filter(line => line.length > 0)
+    .slice(0, OPENWORK_ASCII_MAX_LINES)
+}
+
+function sanitizeAsciiArtLinesFromJson(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return []
+  }
+  return raw
+    .filter((x): x is string => typeof x === 'string')
+    .map(line => sanitizeAsciiArtLine(line))
+    .filter(line => line.length > 0)
+    .slice(0, OPENWORK_ASCII_MAX_LINES)
 }
 
 export function loadOpenWorkAppearance(): OpenWorkAppearanceV1 {
@@ -91,9 +127,13 @@ export function loadOpenWorkAppearance(): OpenWorkAppearanceV1 {
     const accentColor = normalizeAccent(
       typeof o.accentColor === 'string' ? o.accentColor : 'claude',
     )
-    const asciiPreset = normalizeAsciiPreset(
+    let asciiPreset = normalizeAsciiPreset(
       typeof o.asciiPreset === 'string' ? o.asciiPreset : 'full',
     )
+    const asciiArtLines = sanitizeAsciiArtLinesFromJson(o.asciiArtLines)
+    if (asciiPreset === 'custom' && asciiArtLines.length === 0) {
+      asciiPreset = 'minimal'
+    }
     if (!productName) {
       return { ...DEFAULT_APPEARANCE }
     }
@@ -103,6 +143,7 @@ export function loadOpenWorkAppearance(): OpenWorkAppearanceV1 {
       welcomePrefix: welcomePrefix || DEFAULT_APPEARANCE.welcomePrefix,
       accentColor,
       asciiPreset,
+      asciiArtLines,
     }
   } catch {
     return { ...DEFAULT_APPEARANCE }
@@ -121,11 +162,30 @@ export function saveOpenWorkAppearance(
   input: Partial<
     Pick<
       OpenWorkAppearanceV1,
-      'productName' | 'welcomePrefix' | 'accentColor' | 'asciiPreset'
+      | 'productName'
+      | 'welcomePrefix'
+      | 'accentColor'
+      | 'asciiPreset'
+      | 'asciiArtLines'
     >
   >,
 ): void {
   const cur = loadOpenWorkAppearance()
+  let asciiPreset =
+    input.asciiPreset !== undefined
+      ? normalizeAsciiPreset(input.asciiPreset)
+      : cur.asciiPreset
+  const asciiArtLines =
+    input.asciiArtLines !== undefined
+      ? input.asciiArtLines
+          .filter((line): line is string => typeof line === 'string')
+          .map(line => sanitizeAsciiArtLine(line))
+          .filter(line => line.length > 0)
+          .slice(0, OPENWORK_ASCII_MAX_LINES)
+      : cur.asciiArtLines
+  if (asciiPreset === 'custom' && asciiArtLines.length === 0) {
+    asciiPreset = 'minimal'
+  }
   const next: OpenWorkAppearanceV1 = {
     version: 1,
     productName:
@@ -140,10 +200,8 @@ export function saveOpenWorkAppearance(
       input.accentColor !== undefined
         ? normalizeAccent(input.accentColor)
         : cur.accentColor,
-    asciiPreset:
-      input.asciiPreset !== undefined
-        ? normalizeAsciiPreset(input.asciiPreset)
-        : cur.asciiPreset,
+    asciiPreset,
+    asciiArtLines,
   }
   if (!next.productName) {
     next.productName = DEFAULT_APPEARANCE.productName
