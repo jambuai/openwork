@@ -2,15 +2,26 @@ import { c as _c } from "react-compiler-runtime";
 import React from 'react';
 import { Box, Text, useTheme } from 'src/ink.js';
 import { env } from '../../utils/env.js';
+import {
+  loadOpenWorkAppearance,
+  welcomeTitleLine,
+  type OpenWorkAccentPreset,
+} from '../../utils/openworkAppearance.js';
 const WELCOME_V2_WIDTH = 58;
-export function WelcomeV2() {
-  const $ = _c(35);
+export function WelcomeV2AsciiFull() {
+  const $ = _c(36);
   const [theme] = useTheme();
+  const owAppearance = loadOpenWorkAppearance();
+  const welcomeLine = welcomeTitleLine(owAppearance);
+  const titleAccent = owAppearance.accentColor;
+  const titleEl = <Text><Text color={titleAccent}>{welcomeLine} </Text><Text dimColor={true}>v{MACRO.DISPLAY_VERSION ?? MACRO.VERSION} </Text></Text>;
   if (env.terminal === "Apple_Terminal") {
     let t0;
-    if ($[0] !== theme) {
-      t0 = <AppleTerminalWelcomeV2 theme={theme} welcomeMessage="Welcome to Claude Code" />;
+    const appleKey = `${welcomeLine}\0${titleAccent}`;
+    if ($[0] !== theme || $[35] !== appleKey) {
+      t0 = <AppleTerminalWelcomeV2 theme={theme} welcomeMessage={welcomeLine} titleAccent={titleAccent} />;
       $[0] = theme;
+      $[35] = appleKey;
       $[1] = t0;
     } else {
       t0 = $[1];
@@ -18,7 +29,6 @@ export function WelcomeV2() {
     return t0;
   }
   if (["light", "light-daltonized", "light-ansi"].includes(theme)) {
-    let t0;
     let t1;
     let t2;
     let t3;
@@ -28,7 +38,6 @@ export function WelcomeV2() {
     let t7;
     let t8;
     if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-      t0 = <Text><Text color="claude">{"Welcome to OpenWork"} </Text><Text dimColor={true}>v{MACRO.DISPLAY_VERSION ?? MACRO.VERSION} </Text></Text>;
       t1 = <Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}</Text>;
       t2 = <Text>{"                                                          "}</Text>;
       t3 = <Text>{"                                                          "}</Text>;
@@ -37,25 +46,23 @@ export function WelcomeV2() {
       t6 = <Text>{"    \u2591\u2591\u2591   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591                                      "}</Text>;
       t7 = <Text>{"   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591                                    "}</Text>;
       t8 = <Text>{"                                                          "}</Text>;
-      $[2] = t0;
-      $[3] = t1;
-      $[4] = t2;
-      $[5] = t3;
-      $[6] = t4;
-      $[7] = t5;
-      $[8] = t6;
-      $[9] = t7;
-      $[10] = t8;
+      $[2] = t1;
+      $[3] = t2;
+      $[4] = t3;
+      $[5] = t4;
+      $[6] = t5;
+      $[7] = t6;
+      $[8] = t7;
+      $[9] = t8;
     } else {
-      t0 = $[2];
-      t1 = $[3];
-      t2 = $[4];
-      t3 = $[5];
-      t4 = $[6];
-      t5 = $[7];
-      t6 = $[8];
-      t7 = $[9];
-      t8 = $[10];
+      t1 = $[2];
+      t2 = $[3];
+      t3 = $[4];
+      t4 = $[5];
+      t5 = $[6];
+      t6 = $[7];
+      t7 = $[8];
+      t8 = $[9];
     }
     let t9;
     if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
@@ -98,14 +105,13 @@ export function WelcomeV2() {
     }
     let t15;
     if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
-      t15 = <Box width={WELCOME_V2_WIDTH}><Text>{t0}{t1}{t2}{t3}{t4}{t5}{t6}{t7}{t8}{t9}{t10}{t11}{t12}{t13}{t14}<Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}<Text color="clawd_body">{"\u2588 \u2588   \u2588 \u2588"}</Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2591\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2592\u2026\u2026\u2026\u2026"}</Text></Text></Box>;
+      t15 = <Box width={WELCOME_V2_WIDTH}><Text>{titleEl}{t1}{t2}{t3}{t4}{t5}{t6}{t7}{t8}{t9}{t10}{t11}{t12}{t13}{t14}<Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}<Text color="clawd_body">{"\u2588 \u2588   \u2588 \u2588"}</Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2591\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2592\u2026\u2026\u2026\u2026"}</Text></Text></Box>;
       $[17] = t15;
     } else {
       t15 = $[17];
     }
     return t15;
   }
-  let t0;
   let t1;
   let t2;
   let t3;
@@ -113,28 +119,25 @@ export function WelcomeV2() {
   let t5;
   let t6;
   if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
-    t0 = <Text><Text color="claude">{"Welcome to OpenWork"} </Text><Text dimColor={true}>v{MACRO.DISPLAY_VERSION ?? MACRO.VERSION} </Text></Text>;
     t1 = <Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}</Text>;
     t2 = <Text>{"                                                          "}</Text>;
     t3 = <Text>{"     *                                       \u2588\u2588\u2588\u2588\u2588\u2593\u2593\u2591     "}</Text>;
     t4 = <Text>{"                                 *         \u2588\u2588\u2588\u2593\u2591     \u2591\u2591   "}</Text>;
     t5 = <Text>{"            \u2591\u2591\u2591\u2591\u2591\u2591                        \u2588\u2588\u2588\u2593\u2591           "}</Text>;
     t6 = <Text>{"    \u2591\u2591\u2591   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591                      \u2588\u2588\u2588\u2593\u2591           "}</Text>;
-    $[18] = t0;
-    $[19] = t1;
-    $[20] = t2;
-    $[21] = t3;
-    $[22] = t4;
-    $[23] = t5;
-    $[24] = t6;
+    $[18] = t1;
+    $[19] = t2;
+    $[20] = t3;
+    $[21] = t4;
+    $[22] = t5;
+    $[23] = t6;
   } else {
-    t0 = $[18];
-    t1 = $[19];
-    t2 = $[20];
-    t3 = $[21];
-    t4 = $[22];
-    t5 = $[23];
-    t6 = $[24];
+    t1 = $[18];
+    t2 = $[19];
+    t3 = $[20];
+    t4 = $[21];
+    t5 = $[22];
+    t6 = $[23];
   }
   let t10;
   let t11;
@@ -189,7 +192,7 @@ export function WelcomeV2() {
   }
   let t16;
   if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
-    t16 = <Box width={WELCOME_V2_WIDTH}><Text>{t0}{t1}{t2}{t3}{t4}{t5}{t6}{t7}{t8}{t9}{t10}{t11}{t13}{t14}{t15}<Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}<Text color="clawd_body">{"\u2588 \u2588   \u2588 \u2588"}</Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}</Text></Text></Box>;
+    t16 = <Box width={WELCOME_V2_WIDTH}><Text>{titleEl}{t1}{t2}{t3}{t4}{t5}{t6}{t7}{t8}{t9}{t10}{t11}{t13}{t14}{t15}<Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}<Text color="clawd_body">{"\u2588 \u2588   \u2588 \u2588"}</Text>{"\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026"}</Text></Text></Box>;
     $[34] = t16;
   } else {
     t16 = $[34];
@@ -199,19 +202,22 @@ export function WelcomeV2() {
 type AppleTerminalWelcomeV2Props = {
   theme: string;
   welcomeMessage: string;
+  titleAccent: OpenWorkAccentPreset;
 };
-function AppleTerminalWelcomeV2(t0) {
+function AppleTerminalWelcomeV2(t0: AppleTerminalWelcomeV2Props) {
   const $ = _c(44);
   const {
     theme,
-    welcomeMessage
+    welcomeMessage,
+    titleAccent
   } = t0;
   const isLightTheme = ["light", "light-daltonized", "light-ansi"].includes(theme);
   if (isLightTheme) {
     let t1;
-    if ($[0] !== welcomeMessage) {
-      t1 = <Text color="claude">{welcomeMessage} </Text>;
-      $[0] = welcomeMessage;
+    const titleKey = `${welcomeMessage}\0${titleAccent}`;
+    if ($[0] !== titleKey) {
+      t1 = <Text color={titleAccent}>{welcomeMessage} </Text>;
+      $[0] = titleKey;
       $[1] = t1;
     } else {
       t1 = $[1];
@@ -320,9 +326,10 @@ function AppleTerminalWelcomeV2(t0) {
     return t19;
   }
   let t1;
-  if ($[22] !== welcomeMessage) {
-    t1 = <Text color="claude">{welcomeMessage} </Text>;
-    $[22] = welcomeMessage;
+  const titleKeyOuter = `${welcomeMessage}\0${titleAccent}`;
+  if ($[22] !== titleKeyOuter) {
+    t1 = <Text color={titleAccent}>{welcomeMessage} </Text>;
+    $[22] = titleKeyOuter;
     $[23] = t1;
   } else {
     t1 = $[23];

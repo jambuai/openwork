@@ -7,7 +7,7 @@ import { c as _c } from "react-compiler-runtime";
 
 import { cwd } from 'process';
 import React from 'react';
-import { WelcomeV2 } from '../../components/LogoV2/WelcomeV2.js';
+import { WelcomeV2 } from '../../components/LogoV2/OpenWorkWelcome.js';
 import { useManagePlugins } from '../../hooks/useManagePlugins.js';
 import type { Root } from '../../ink.js';
 import { Box, Text } from '../../ink.js';

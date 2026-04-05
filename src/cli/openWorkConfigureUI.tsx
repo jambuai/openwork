@@ -13,6 +13,8 @@ const MODEL_OTHER = '__model_other__'
 const KEY_FIELD = '__key_field__'
 const KEY_KEEP = '__key_keep__'
 const KEY_NEW = '__key_new__'
+const STEP_BACK = '__step_back__'
+const CONFIRM_SAVE = '__confirm_save__'
 
 type EncryptedSecretsShape = { openaiApiKey?: string }
 
@@ -22,7 +24,7 @@ export type ConfigureResult = {
   openaiApiKey: string | undefined
 }
 
-type Step = 'provider' | 'baseUrl' | 'model' | 'apiKey'
+type Step = 'provider' | 'baseUrl' | 'model' | 'apiKey' | 'confirm'
 
 function isLocalBaseUrl(url: string): boolean {
   try {
@@ -38,6 +40,143 @@ function maskKey(key: string | undefined): string {
   if (!key) return '(none saved)'
   if (key.length <= 8) return '********'
   return `${key.slice(0, 4)}…${key.slice(-4)}`
+}
+
+function keyLineForReview(k: string | undefined): string {
+  if (k === undefined || k === '') {
+    return '(none — optional for local URLs)'
+  }
+  return maskKey(k)
+}
+
+function hasDiskProfile(
+  pub: OpenWorkPublicConfig | null,
+  sec: EncryptedSecretsShape,
+): boolean {
+  return !!(
+    (pub?.baseUrl && pub.baseUrl.trim() !== '') ||
+    (pub?.model && pub.model.trim() !== '') ||
+    (sec.openaiApiKey != null && sec.openaiApiKey !== '')
+  )
+}
+
+function ProfileFieldRows({
+  pub,
+  sec,
+}: {
+  pub: OpenWorkPublicConfig | null
+  sec: EncryptedSecretsShape
+}): React.ReactNode {
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Box flexDirection="column">
+        <Text dimColor>Base URL</Text>
+        <Text wrap="wrap">{pub?.baseUrl?.trim() ? pub.baseUrl : '—'}</Text>
+      </Box>
+      <Box flexDirection="column">
+        <Text dimColor>Model</Text>
+        <Text wrap="wrap">{pub?.model?.trim() ? pub.model : '—'}</Text>
+      </Box>
+      <Box flexDirection="column">
+        <Text dimColor>API key</Text>
+        <Text>{maskKey(sec.openaiApiKey)}</Text>
+      </Box>
+    </Box>
+  )
+}
+
+/** Framed summary of what is already stored on disk (initial load). */
+function DiskProfilePanel({
+  pub,
+  sec,
+  variant,
+}: {
+  pub: OpenWorkPublicConfig | null
+  sec: EncryptedSecretsShape
+  variant: 'hero' | 'strip'
+}): React.ReactNode {
+  const saved = hasDiskProfile(pub, sec)
+  if (variant === 'hero') {
+    if (!saved) {
+      return (
+        <Box
+          borderStyle="round"
+          borderColor="inactive"
+          flexDirection="column"
+          paddingX={1}
+          paddingY={1}
+          marginBottom={1}
+        >
+          <Text bold color="suggestion">
+            No profile on disk yet
+          </Text>
+          <Text dimColor>
+            Pick a provider below to create your first ~/.openwork setup.
+          </Text>
+        </Box>
+      )
+    }
+    return (
+      <Box
+        borderStyle="round"
+        borderColor="ide"
+        flexDirection="column"
+        paddingX={1}
+        paddingY={1}
+        marginBottom={1}
+      >
+        <Text bold color="suggestion">
+          Current profile on disk
+        </Text>
+        <Text dimColor>
+          This is what OpenWork uses today. Continue only if you want to replace
+          it.
+        </Text>
+        <Box
+          borderStyle="single"
+          borderDimColor
+          flexDirection="column"
+          paddingX={1}
+          paddingY={1}
+          marginTop={1}
+        >
+          <ProfileFieldRows pub={pub} sec={sec} />
+        </Box>
+      </Box>
+    )
+  }
+  if (!saved) {
+    return null
+  }
+  return (
+    <Box
+      borderStyle="round"
+      borderColor="subtle"
+      flexDirection="column"
+      paddingX={1}
+      paddingY={1}
+      marginBottom={1}
+    >
+      <Text bold dimColor>
+        On disk right now
+      </Text>
+      <ProfileFieldRows pub={pub} sec={sec} />
+    </Box>
+  )
+}
+
+function navHintForStep(step: Step): string {
+  const base = `${figures.pointer} arrows or j/k · Enter confirm`
+  if (step === 'provider') {
+    return `${base} · Esc exit wizard`
+  }
+  return `${base} · Esc previous step`
+}
+
+const backOption: OptionWithDescription<string> = {
+  label: '← Back',
+  value: STEP_BACK,
+  description: 'Previous step without losing earlier choices',
 }
 
 function validateUrl(raw: string): string | null {
@@ -78,12 +217,50 @@ export function OpenWorkConfigureWizard({
   const [apiKeyAttempt, setApiKeyAttempt] = useState(0)
   const [modelError, setModelError] = useState<string | null>(null)
   const [modelRetry, setModelRetry] = useState(0)
+  const [pendingResult, setPendingResult] = useState<ConfigureResult | null>(
+    null,
+  )
 
   const baseUrlInputRef = useRef('')
   const modelOtherRef = useRef('')
   const apiKeyRef = useRef('')
 
   const hasSavedKey = sec.openaiApiKey != null && sec.openaiApiKey !== ''
+
+  const goBack = useCallback(() => {
+    setApiKeyError(null)
+    setUrlError(null)
+    setModelError(null)
+    if (step === 'confirm') {
+      setPendingResult(null)
+      setStep('apiKey')
+      return
+    }
+    if (step === 'apiKey') {
+      apiKeyRef.current = ''
+      setApiKeyAttempt(0)
+      setStep('model')
+      return
+    }
+    if (step === 'model') {
+      setModelState('')
+      modelOtherRef.current = ''
+      setModelRetry(0)
+      setStep('baseUrl')
+      return
+    }
+    if (step === 'baseUrl') {
+      setPreset(null)
+      setBaseUrlState('')
+      setModelState('')
+      baseUrlInputRef.current = ''
+      modelOtherRef.current = ''
+      setUrlRetry(0)
+      setStep('provider')
+      return
+    }
+    onCancel()
+  }, [step, onCancel])
 
   const goModel = useCallback(() => {
     setUrlError(null)
@@ -106,6 +283,10 @@ export function OpenWorkConfigureWizard({
 
   const handleBaseUrlChoice = useCallback(
     (value: string) => {
+      if (value === STEP_BACK) {
+        goBack()
+        return
+      }
       if (!preset) return
       if (preset.id === 'custom') {
         if (value !== KEY_FIELD) return
@@ -135,11 +316,15 @@ export function OpenWorkConfigureWizard({
         goModel()
       }
     },
-    [preset, goModel],
+    [preset, goModel, goBack],
   )
 
   const handleModelChoice = useCallback(
     (value: string) => {
+      if (value === STEP_BACK) {
+        goBack()
+        return
+      }
       if (!preset) return
       if (value === MODEL_OTHER) {
         const m = modelOtherRef.current.trim()
@@ -157,56 +342,78 @@ export function OpenWorkConfigureWizard({
       setApiKeyAttempt(0)
       setStep('apiKey')
     },
-    [preset],
+    [preset, goBack],
   )
 
-  const finish = useCallback(
+  const goConfirm = useCallback(
     (openaiApiKey: string | undefined) => {
       if (!preset) return
-      onComplete({
+      setPendingResult({
         model,
         baseUrl,
         openaiApiKey,
       })
+      setStep('confirm')
     },
-    [preset, model, baseUrl, onComplete],
+    [preset, model, baseUrl],
+  )
+
+  const handleConfirmChoice = useCallback(
+    (value: string) => {
+      if (value === STEP_BACK) {
+        goBack()
+        return
+      }
+      if (value === CONFIRM_SAVE && pendingResult) {
+        onComplete(pendingResult)
+      }
+    },
+    [pendingResult, onComplete, goBack],
   )
 
   const handleApiKeyChoice = useCallback(
     (value: string) => {
+      if (value === STEP_BACK) {
+        goBack()
+        return
+      }
       const local = isLocalBaseUrl(baseUrl)
       if (local) {
         if (value !== KEY_FIELD) return
-        finish(apiKeyRef.current.trim() === '' ? '' : apiKeyRef.current.trim())
+        goConfirm(apiKeyRef.current.trim() === '' ? '' : apiKeyRef.current.trim())
         return
       }
       if (hasSavedKey) {
         if (value === KEY_KEEP) {
-          finish(sec.openaiApiKey)
+          goConfirm(sec.openaiApiKey)
           return
         }
         if (value === KEY_NEW) {
           const k = apiKeyRef.current.trim()
           if (!k) {
-            setApiKeyError('New API key cannot be empty.')
+            setApiKeyError(
+              'New API key cannot be empty. Enter a key, or Esc / ← Back to change model.',
+            )
             setApiKeyAttempt(a => a + 1)
             return
           }
-          finish(k)
+          goConfirm(k)
         }
         return
       }
       if (value === KEY_FIELD) {
         const k = apiKeyRef.current.trim()
         if (!k) {
-          setApiKeyError('An API key is required for this provider.')
+          setApiKeyError(
+            'API key required for this provider. Paste a key, or Esc / ← Back to revise earlier steps.',
+          )
           setApiKeyAttempt(a => a + 1)
           return
         }
-        finish(k)
+        goConfirm(k)
       }
     },
-    [baseUrl, hasSavedKey, sec.openaiApiKey, finish],
+    [baseUrl, hasSavedKey, sec.openaiApiKey, goConfirm, goBack],
   )
 
   const providerOptions: OptionWithDescription<string>[] = useMemo(
@@ -228,18 +435,8 @@ export function OpenWorkConfigureWizard({
         onCancel={onCancel}
       >
         <Box flexDirection="column" gap={1}>
-          {(pub?.baseUrl || pub?.model || hasSavedKey) && (
-            <Box flexDirection="column" marginBottom={1}>
-              <Text bold>Current profile</Text>
-              <Text dimColor>
-                URL: {pub?.baseUrl ?? '(not set)'} · Model: {pub?.model ?? '(not set)'} · Key:{' '}
-                {maskKey(sec.openaiApiKey)}
-              </Text>
-            </Box>
-          )}
-          <Text dimColor>
-            {figures.pointer} arrows / j k · Enter to confirm · Esc to cancel
-          </Text>
+          <DiskProfilePanel pub={pub} sec={sec} variant="hero" />
+          <Text dimColor>{navHintForStep('provider')}</Text>
           <Select
             layout="compact-vertical"
             visibleOptionCount={8}
@@ -255,6 +452,7 @@ export function OpenWorkConfigureWizard({
   if (step === 'baseUrl' && preset) {
     if (preset.id === 'custom') {
       const opts: OptionWithDescription<string>[] = [
+        backOption,
         {
           type: 'input',
           label: 'Base URL',
@@ -268,16 +466,18 @@ export function OpenWorkConfigureWizard({
         },
       ]
       return (
-        <Dialog title="Base URL" color="suggestion" onCancel={onCancel}>
+        <Dialog title="Base URL" color="suggestion" onCancel={goBack}>
           <Box flexDirection="column" gap={1}>
+            <DiskProfilePanel pub={pub} sec={sec} variant="strip" />
             <Text dimColor>{preset.keyHint}</Text>
+            <Text dimColor>{navHintForStep('baseUrl')}</Text>
             {urlError && <Text color="error">{urlError}</Text>}
             <Select
               key={`custom-url-${urlRetry}`}
               layout="compact-vertical"
               options={opts}
               onChange={handleBaseUrlChoice}
-              onCancel={onCancel}
+              onCancel={goBack}
             />
           </Box>
         </Dialog>
@@ -285,6 +485,7 @@ export function OpenWorkConfigureWizard({
     }
 
     const opts: OptionWithDescription<string>[] = [
+      backOption,
       {
         label: `Use default`,
         value: BASE_DEF,
@@ -302,16 +503,18 @@ export function OpenWorkConfigureWizard({
       },
     ]
     return (
-      <Dialog title={`Base URL — ${preset.label}`} color="suggestion" onCancel={onCancel}>
+      <Dialog title={`Base URL — ${preset.label}`} color="suggestion" onCancel={goBack}>
         <Box flexDirection="column" gap={1}>
+          <DiskProfilePanel pub={pub} sec={sec} variant="strip" />
           <Text dimColor>{preset.keyHint}</Text>
+          <Text dimColor>{navHintForStep('baseUrl')}</Text>
           {urlError && <Text color="error">{urlError}</Text>}
           <Select
             key={`base-${preset.id}-${urlRetry}`}
             layout="compact-vertical"
             options={opts}
             onChange={handleBaseUrlChoice}
-            onCancel={onCancel}
+            onCancel={goBack}
           />
         </Box>
       </Dialog>
@@ -320,6 +523,7 @@ export function OpenWorkConfigureWizard({
 
   if (step === 'model' && preset) {
     const opts: OptionWithDescription<string>[] = [
+      backOption,
       ...preset.models.map(m => ({
         label: m,
         value: m,
@@ -338,8 +542,10 @@ export function OpenWorkConfigureWizard({
       },
     ]
     return (
-      <Dialog title={`Model — ${preset.label}`} color="suggestion" onCancel={onCancel}>
+      <Dialog title={`Model — ${preset.label}`} color="suggestion" onCancel={goBack}>
         <Box flexDirection="column" gap={1}>
+          <DiskProfilePanel pub={pub} sec={sec} variant="strip" />
+          <Text dimColor>{navHintForStep('model')}</Text>
           {modelError && <Text color="error">{modelError}</Text>}
           <Select
             key={`model-${modelRetry}`}
@@ -347,7 +553,7 @@ export function OpenWorkConfigureWizard({
             visibleOptionCount={8}
             options={opts}
             onChange={handleModelChoice}
-            onCancel={onCancel}
+            onCancel={goBack}
           />
         </Box>
       </Dialog>
@@ -358,6 +564,7 @@ export function OpenWorkConfigureWizard({
     const local = isLocalBaseUrl(baseUrl)
     if (local) {
       const opts: OptionWithDescription<string>[] = [
+        backOption,
         {
           type: 'input',
           label: 'API key',
@@ -371,15 +578,17 @@ export function OpenWorkConfigureWizard({
         },
       ]
       return (
-        <Dialog title="API key (optional)" color="suggestion" onCancel={onCancel}>
+        <Dialog title="API key (optional)" color="suggestion" onCancel={goBack}>
           <Box flexDirection="column" gap={1}>
+            <DiskProfilePanel pub={pub} sec={sec} variant="strip" />
             <Text dimColor>{preset.keyHint}</Text>
+            <Text dimColor>{navHintForStep('apiKey')}</Text>
             <Select
               key={`api-local-${apiKeyAttempt}`}
               layout="compact-vertical"
               options={opts}
               onChange={handleApiKeyChoice}
-              onCancel={onCancel}
+              onCancel={goBack}
             />
           </Box>
         </Dialog>
@@ -388,6 +597,7 @@ export function OpenWorkConfigureWizard({
 
     if (hasSavedKey) {
       const opts: OptionWithDescription<string>[] = [
+        backOption,
         {
           label: 'Keep saved API key',
           value: KEY_KEEP,
@@ -405,16 +615,18 @@ export function OpenWorkConfigureWizard({
         },
       ]
       return (
-        <Dialog title="API key" color="suggestion" onCancel={onCancel}>
+        <Dialog title="API key" color="suggestion" onCancel={goBack}>
           <Box flexDirection="column" gap={1}>
+            <DiskProfilePanel pub={pub} sec={sec} variant="strip" />
             <Text dimColor>{preset.keyHint}</Text>
+            <Text dimColor>{navHintForStep('apiKey')}</Text>
             {apiKeyError && <Text color="error">{apiKeyError}</Text>}
             <Select
               key={`api-saved-${apiKeyAttempt}`}
               layout="compact-vertical"
               options={opts}
               onChange={handleApiKeyChoice}
-              onCancel={onCancel}
+              onCancel={goBack}
             />
           </Box>
         </Dialog>
@@ -422,6 +634,7 @@ export function OpenWorkConfigureWizard({
     }
 
     const opts: OptionWithDescription<string>[] = [
+      backOption,
       {
         type: 'input',
         label: 'API key',
@@ -435,16 +648,86 @@ export function OpenWorkConfigureWizard({
       },
     ]
     return (
-      <Dialog title="API key" color="suggestion" onCancel={onCancel}>
+      <Dialog title="API key" color="suggestion" onCancel={goBack}>
         <Box flexDirection="column" gap={1}>
+          <DiskProfilePanel pub={pub} sec={sec} variant="strip" />
           <Text dimColor>{preset.keyHint}</Text>
+          <Text dimColor>{navHintForStep('apiKey')}</Text>
           {apiKeyError && <Text color="error">{apiKeyError}</Text>}
           <Select
             key={`api-req-${apiKeyAttempt}`}
             layout="compact-vertical"
             options={opts}
             onChange={handleApiKeyChoice}
-            onCancel={onCancel}
+            onCancel={goBack}
+          />
+        </Box>
+      </Dialog>
+    )
+  }
+
+  if (step === 'confirm' && preset && pendingResult) {
+    const confirmOpts: OptionWithDescription<string>[] = [
+      {
+        label: 'Save and finish',
+        value: CONFIRM_SAVE,
+        description: `Write provider.json + credentials under ${openworkDir}/`,
+      },
+      backOption,
+    ]
+    return (
+      <Dialog title="Review & save" color="suggestion" onCancel={goBack}>
+        <Box flexDirection="column" gap={1}>
+          <Text dimColor>Compare with what is on disk, then save or go back.</Text>
+          {hasDiskProfile(pub, sec) && (
+            <Box
+              borderStyle="round"
+              borderColor="inactive"
+              flexDirection="column"
+              paddingX={1}
+              paddingY={1}
+            >
+              <Text bold dimColor>
+                Before (on disk)
+              </Text>
+              <ProfileFieldRows pub={pub} sec={sec} />
+            </Box>
+          )}
+          <Box
+            borderStyle="round"
+            borderColor="suggestion"
+            flexDirection="column"
+            paddingX={1}
+            paddingY={1}
+          >
+            <Text bold color="suggestion">
+              After save
+            </Text>
+            <Box flexDirection="column" gap={1} marginTop={1}>
+              <Box flexDirection="column">
+                <Text dimColor>Provider</Text>
+                <Text wrap="wrap">{preset.label}</Text>
+              </Box>
+              <Box flexDirection="column">
+                <Text dimColor>Base URL</Text>
+                <Text wrap="wrap">{pendingResult.baseUrl}</Text>
+              </Box>
+              <Box flexDirection="column">
+                <Text dimColor>Model</Text>
+                <Text wrap="wrap">{pendingResult.model}</Text>
+              </Box>
+              <Box flexDirection="column">
+                <Text dimColor>API key</Text>
+                <Text>{keyLineForReview(pendingResult.openaiApiKey)}</Text>
+              </Box>
+            </Box>
+          </Box>
+          <Text dimColor>{navHintForStep('confirm')}</Text>
+          <Select
+            layout="compact-vertical"
+            options={confirmOpts}
+            onChange={handleConfirmChoice}
+            onCancel={goBack}
           />
         </Box>
       </Dialog>

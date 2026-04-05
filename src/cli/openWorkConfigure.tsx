@@ -53,11 +53,7 @@ export async function runOpenWorkConfigure(): Promise<void> {
                 })
                 instance.unmount()
                 // biome-ignore lint/suspicious/noConsole: CLI output after Ink teardown
-                console.log('\nSaved. Run `openwork` to start.')
-                // biome-ignore lint/suspicious/noConsole: CLI output
-                console.log(
-                  'To use Anthropic only for one session: OPENWORK_SKIP_STORE=1 openwork\n',
-                )
+                console.log('\nSaved. Run `openwork`.')
                 resolve()
               }}
               onCancel={() => {
@@ -76,4 +72,7 @@ export async function runOpenWorkConfigure(): Promise<void> {
       )
     })()
   })
+  // Ink leaves TTY watchers / handles alive; exit so the shell prompt returns immediately.
+  // eslint-disable-next-line custom-rules/no-process-exit -- configure is a leaf command
+  process.exit(0)
 }

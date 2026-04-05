@@ -105,6 +105,12 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (args[0] === 'appearance') {
+    const { runOpenWorkAppearance } = await import('../cli/openWorkAppearance.js');
+    await runOpenWorkAppearance();
+    return;
+  }
+
   applyOpenWorkProviderFromArgvAndStore()
 
   validateProviderEnvOrExit()

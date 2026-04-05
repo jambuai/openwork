@@ -408,7 +408,7 @@ export async function setup(
     ) {
       // biome-ignore lint/suspicious/noConsole:: intentional console output
       console.error(
-        `--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons`,
+        `--dangerously-skip-permissions (--free) cannot be used with root/sudo privileges for security reasons`,
       )
       process.exit(1)
     }
@@ -434,7 +434,7 @@ export async function setup(
       if (!isSandboxed || hasInternet) {
         // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.error(
-          `--dangerously-skip-permissions can only be used in Docker/sandbox containers with no internet access but got Docker: ${isDocker}, Bubblewrap: ${isBubblewrap}, IS_SANDBOX: ${isSandbox}, hasInternet: ${hasInternet}`,
+          `--dangerously-skip-permissions (--free) can only be used in Docker/sandbox containers with no internet access but got Docker: ${isDocker}, Bubblewrap: ${isBubblewrap}, IS_SANDBOX: ${isSandbox}, hasInternet: ${hasInternet}`,
         )
         process.exit(1)
       }

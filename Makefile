@@ -33,18 +33,18 @@ openwork-install:
 openwork-install-remote:
 	curl -fsSL $(INSTALL_SCRIPT_URL) | bash
 
-# npm global + ~/.local/bin launcher from source installs; does not edit shell rc (remove openwork-install markers by hand if you want).
+# npm global; removes legacy ~/.local/bin launcher if present (older installers). PATH hooks in rc are unchanged.
 openwork-uninstall:
 	@echo "Removing global npm package ($(OPENWORK_NPM_PACKAGE)) if present..."
 	-npm uninstall -g $(OPENWORK_NPM_PACKAGE) 2>/dev/null || true
-	@echo "Removing source launcher in $(OPENWORK_LOCAL_BIN) if present..."
+	@echo "Removing legacy launcher in $(OPENWORK_LOCAL_BIN) if present..."
 	rm -f $(OPENWORK_LOCAL_BIN)/openwork $(OPENWORK_LOCAL_BIN)/.openwork-root
 	@echo "openwork-uninstall: done (PATH hooks in rc files were not changed)."
 
-# Also deletes the clone used by OPENWORK_INSTALL_CHANNEL=source (destructive).
+# Also removes ~/.openwork-source if it exists (leftover from old source-based installs).
 openwork-purge: openwork-uninstall
 	rm -rf $(OPENWORK_SOURCE_DIR)
-	@echo "openwork-purge: removed $(OPENWORK_SOURCE_DIR)"
+	@echo "openwork-purge: removed $(OPENWORK_SOURCE_DIR) if it existed"
 
 # Shell shim: `claude` → openwork (function in ~/.zshrc etc.). Revert with claude-revert.
 # Dev without global openwork: make claude OPENWORK_BIN="$(CURDIR)/bin/openwork"
@@ -101,10 +101,10 @@ help:
 	@echo ""
 	@echo "  setup           Install deps and build (first-time setup)"
 	@echo "  install         Install bun dependencies"
-	@echo "  openwork-install         Run scripts/install-openwork.sh (same as one-liner; set OPENWORK_INSTALL_CHANNEL=source for clone+Bun)"
+	@echo "  openwork-install         Run scripts/install-openwork.sh (npm global; same as curl one-liner)"
 	@echo "  openwork-install-remote  curl install-openwork.sh from GitHub main"
-	@echo "  openwork-uninstall       npm uninstall -g + remove ~/.local/bin launcher"
-	@echo "  openwork-purge           openwork-uninstall + rm -rf ~/.openwork-source"
+	@echo "  openwork-uninstall       npm uninstall -g + remove legacy ~/.local/bin launcher"
+	@echo "  openwork-purge           openwork-uninstall + rm -rf ~/.openwork-source (legacy cleanup)"
 	@echo "  claude            Install shell shim: claude → openwork (see OPENWORK_BIN in Makefile comment)"
 	@echo "  claude-revert     Remove that shim from shell rc files"
 	@echo "  build           Compile TypeScript -> dist/"

@@ -68,7 +68,6 @@ Environment variables:
 
 | Variable | Effect |
 |----------|--------|
-| `OPENWORK_INSTALL_CHANNEL=source` | Clone repo, `bun install` / `bun run build`, launcher under `~/.local/bin` (needs Git + Bun + Node). |
 | `OPENWORK_NPM_PACKAGE` | Override package (default `@jgabriellima/openwork`). |
 | `OPENWORK_NPM_TAG` | Dist-tag (default `latest`). |
 | `OPENWORK_SKIP_PATH_HOOK=1` | Do not edit shell rc / user PATH. |
@@ -85,8 +84,6 @@ bun install
 bun run build
 node dist/cli.mjs --version
 ```
-
-Or use the one-line installer with `OPENWORK_INSTALL_CHANNEL=source`.
 
 ### Option D: Run directly with Bun (development)
 
