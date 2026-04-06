@@ -97,10 +97,10 @@ clean:
 
 # ── Release (Changesets) ─────────────────────────────────────────────────────────
 #
-# make release       → scripts/make-release-main.sh: checkout main, pull, version bump,
-#                      push branch chore/version-packages-*, open PR, merge (gh CLI).
-#   Prereq: feature work with .changeset/*.md already merged into origin/main; clean git tree.
-#   Env: RELEASE_MERGE=auto (default) | merge | admin | open; RELEASE_BASE_BRANCH=main
+# make release       → scripts/make-release-main.sh: checkout main, pull, merge starting branch
+#                      into main (if not main), then build + version bump + chore/version-packages PR.
+#   Run from your feature branch: changesets can live there; they are merged into main before build.
+#   Env: RELEASE_MERGE=auto|merge|admin|open; RELEASE_BASE_BRANCH=main; RELEASE_SKIP_FEATURE_MERGE=1 to skip merge
 #   After merge to main, .github/workflows/release.yml publishes to npm if NPM_TOKEN is set.
 #
 # make release-push  → bump + commit + push current branch only (no PR, no branch switch).
