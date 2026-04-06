@@ -1,19 +1,28 @@
 ---
 name: new-feature
 description: >-
-  Starts user-visible work on a dedicated git branch and records a Changesets
-  entry so the change ships in the next automated release (changelog + npm +
-  GitHub Release). Use when the user invokes /new-feature, names a new feature,
-  or asks to begin feature work that should appear in CHANGELOG.md.
+  Starts shippable work from free-form input: feature intent, slash commands,
+  comments, issue/PR links, URLs, or pasted specs. Creates a git branch,
+  implements within scope, and adds a Changesets file so the change joins the
+  automated release (CHANGELOG + npm + GitHub Release). Use when the user
+  invokes /new-feature or new-feature followed by any context they provide.
 ---
 
 # New feature (branch + Changesets)
 
+## Input shape
+
+The user may pass **anything after** `new-feature` / `/new-feature`: a one-liner, a bullet list, a command to run, `#123`, URLs, design notes, acceptance criteria, or “see thread X”. Treat that blob as the **source of truth for scope and naming**, not only a title.
+
+- **Parse first:** extract goals, constraints, file paths, tickets, and explicit “out of scope”.
+- **If contradictory or too thin to branch safely:** one clarifying question, then continue.
+- **References:** open linked issues/docs when useful; if unreachable, proceed from pasted excerpts only.
+
 ## When this applies
 
-Use for **work that should appear in the next release** (features, fixes, breaking changes). Skip a changeset only for **no-release** edits (docs-only, internal refactors with zero user impact) — then use `bunx changeset --empty` only if Changesets still complains locally.
+Use for **work that should appear in the next release** (features, fixes, breaking changes). For **no-release** edits only (docs-only, internal refactors with zero user impact), skip a changeset or use `bunx changeset --empty` if Changesets still complains locally.
 
-If requirements or scope are unclear, use the **brainstorming** skill first, then return here.
+If the idea needs design exploration first, use the **brainstorming** skill, then return here.
 
 ## Package name
 
@@ -24,49 +33,43 @@ Changeset frontmatter must use the npm name from `package.json`:
 ## Workflow (execute in order)
 
 1. **Branch**
-   - `git fetch origin` and ensure base is current `main` (rebase or merge if the repo already uses another default — prefer `main` here).
-   - Create `feat/<slug>` where `<slug>` is a short **kebab-case** ASCII slug derived from the user’s description (drop articles; max ~48 chars).
-   - Example: “OAuth login for CLI” → `feat/cli-oauth-login`.
+   - `git fetch origin` and base off current `main`.
+   - Create `feat/<slug>`: **kebab-case** ASCII from the strongest short label in the user’s input (issues: `feat/issue-123-short-topic`; max ~48 chars).
 
 2. **Implement**
-   - Match existing project patterns; keep scope to the described feature unless the user expands it.
+   - Follow existing project patterns; honor references and commands from the input unless they conflict with the repo — then stop and ask.
 
 3. **Changeset (required before the PR is merge-ready)**
-   - **Preferred (human or TTY):** `bunx changeset` and follow prompts.
-   - **Agent / non-interactive:** create `.changeset/<slug>.md` (unique name, kebab-case) with this shape:
+   - **TTY:** `bunx changeset`.
+   - **Agent / non-interactive:** create `.changeset/<slug>.md`:
 
 ```markdown
 ---
 "@jambulab/openwork": minor
 ---
 
-<User-facing summary in imperative or neutral tone; appears in CHANGELOG.md>
+<User-facing summary; imperative/neutral; reflects the input intent>
 ```
 
-   - Pick the semver bump:
-     - **`minor`** — new behavior or feature, backwards compatible (default for `/new-feature`).
-     - **`patch`** — bugfix or small correction with no new capability.
-     - **`major`** — breaking change for consumers or CLI contract.
+   - **Bump:** `minor` default for new capability; `patch` fix; `major` breaking CLI/API for consumers.
 
 4. **Validate**
-   - `bun run build` (or at least what CI runs: install frozen + build + smoke if touching runtime code).
-   - `CI=true bunx changeset status` must exit **0** once the changeset file exists.
+   - `bun run build` when runtime code or packaging is touched.
+   - `CI=true bunx changeset status` exits **0**.
 
 5. **Commit**
-   - Include **both** code and the new `.changeset/*.md` in the same PR (or split only if the team explicitly prefers a follow-up commit — default: same PR).
+   - Same PR: code + `.changeset/*.md`.
 
-## Release linkage (no extra steps in this skill)
+## Release linkage
 
-Merging to `main` triggers `.github/workflows/release.yml`: pending changesets become a **Version packages** PR; merging that PR publishes npm (build via `prepack`) and opens a GitHub Release. The agent does **not** manually tag or edit `package.json` version for normal releases.
+Merging to `main` runs `.github/workflows/release.yml` (Version packages PR → merge → `npm publish` + GitHub Release). Do **not** hand-bump `package.json` or tag for normal releases.
 
 ## Checklist
 
-Copy and complete:
-
 ```
+- [ ] Parsed user input (commands / references / comments)
 - [ ] Branch feat/<slug> from up-to-date main
-- [ ] Implementation done and scoped
-- [ ] .changeset/<slug>.md added (correct bump + user-facing line)
-- [ ] CI=true bunx changeset status passes
-- [ ] build/smoke as appropriate
+- [ ] Implementation scoped to input
+- [ ] .changeset/<slug>.md (correct bump + changelog line)
+- [ ] CI=true bunx changeset status + build/smoke as needed
 ```

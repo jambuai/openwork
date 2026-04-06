@@ -1,6 +1,6 @@
 .PHONY: setup install build start dev doctor smoke check clean \
 	openwork-install openwork-install-remote openwork-uninstall openwork-purge \
-	claude claude-revert
+	claude claude-revert release publish
 
 ENV_FILE := .env
 
@@ -95,6 +95,40 @@ profile-code:
 clean:
 	rm -rf dist reports
 
+# ── Release (Changesets) ─────────────────────────────────────────────────────────
+#
+# Prerequisite: committed .changeset/*.md files (run `bunx changeset` on feature work).
+#
+# make release  → build, `changeset version`, commit version bump, push to origin.
+#   After push, .github/workflows/release.yml may publish to npm + GitHub Release if
+#   NPM_TOKEN is configured (no local `make publish` needed in that case).
+#
+# make publish  → build, `changeset publish` (npm + git tag), push branch + tags.
+#   Use for publishing from this machine; skip if CI already published the version.
+
+release:
+	@echo "→ build"
+	bun run build
+	@echo "→ changeset version (bump package.json + CHANGELOG, consume .changeset/*)"
+	bun run version-packages
+	git add package.json CHANGELOG.md .changeset
+	@if git diff --cached --quiet; then \
+		echo ""; \
+		echo "No version changes staged. Add a changeset first: bunx changeset"; \
+		echo "(or commit/remove stale .changeset files if the bump already ran)."; \
+		exit 1; \
+	fi
+	git commit -m "chore: version packages"
+	git push origin HEAD
+
+publish:
+	@echo "→ build"
+	bun run build
+	@echo "→ changeset publish (npm + release tag)"
+	bunx changeset publish
+	@echo "→ push commits and tags (if any)"
+	git push origin HEAD --follow-tags
+
 help:
 	@echo ""
 	@echo "Usage: make <target>"
@@ -121,4 +155,7 @@ help:
 	@echo "  profile-code    Init coding profile (qwen2.5-coder:7b)"
 	@echo ""
 	@echo "  clean           Remove dist/ and reports/"
+	@echo ""
+	@echo "  release         Changeset version bump + commit + git push (needs .changeset/*.md)"
+	@echo "  publish         changeset publish (npm + tag) + git push --follow-tags"
 	@echo ""
