@@ -93,8 +93,8 @@ export function normalizeCaseForComparison(path: string): string {
 }
 
 /**
- * If filePath is inside a project or global harness `*/skills/{name}/` directory
- * (e.g. `.claude`, `.cursor`, `.agents`, `.gemini`),
+ * If filePath is inside a project or global harness skills directory
+ * (e.g. `.claude/skills/{name}/`, `.cursor/skills/…`, `.agents`, `.gemini`),
  * return the skill name and a session-allow pattern scoped to just that skill.
  * Used to offer a narrower "allow edits to this skill only" option in the
  * permission dialog and SDK suggestions, so iterating on one skill doesn't
