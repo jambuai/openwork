@@ -1,6 +1,6 @@
 {
   "name": "@jambulab/openwork",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Agentic coding CLI that works with any OpenAI-compatible LLM — GPT-5.x, DeepSeek, Gemini, Ollama, and 200+ models",
   "type": "module",
   "bin": {
