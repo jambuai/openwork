@@ -18,6 +18,7 @@ import { parseFrontmatter } from './frontmatterParser.js'
 import { findCanonicalGitRoot, findGitRoot } from './git.js'
 import { parseToolListFromCLI } from './permissions/permissionSetup.js'
 import { ripGrep } from './ripgrep.js'
+import { AGENT_PROJECT_CONFIG_ROOTS } from './agentHarnessRoots.js'
 import {
   isSettingSourceEnabled,
   type SettingSource,
@@ -36,6 +37,14 @@ export const CLAUDE_CONFIG_DIRECTORIES = [
 ] as const
 
 export type ClaudeConfigDirectory = (typeof CLAUDE_CONFIG_DIRECTORIES)[number]
+
+function projectConfigRootsForSubdir(
+  subdir: ClaudeConfigDirectory,
+): readonly string[] {
+  return subdir === 'skills' || subdir === 'commands'
+    ? AGENT_PROJECT_CONFIG_ROOTS
+    : (['.claude'] as const)
+}
 
 export type MarkdownFile = {
   filePath: string
@@ -221,7 +230,11 @@ function resolveStopBoundary(cwd: string): string | null {
 
 /**
  * Traverses from the current directory up to the git root (or home directory if not in a git repo),
- * collecting all .claude directories along the way.
+ * collecting project harness directories along the way.
+ *
+ * For `skills` and `commands`, checks `.claude`, `.cursor`, `.agents`, and `.gemini`
+ * at each ancestor so OpenWork interoperates with other agent CLIs in the same repo.
+ * Other subdirs (e.g. `agents`) still use `.claude` only.
  *
  * Stopping at git root prevents commands/skills from parent directories outside the repository
  * from leaking into projects. For example, if ~/projects/.claude/commands/ exists, it won't
@@ -229,7 +242,7 @@ function resolveStopBoundary(cwd: string): string | null {
  *
  * @param subdir Subdirectory (eg. "commands", "agents")
  * @param cwd Current working directory to start from
- * @returns Array of directory paths containing .claude/subdir, from most specific (cwd) to least specific
+ * @returns Directory paths containing `{harness}/subdir`, cwd-first then parents; within each level, roots are ordered `.claude` → `.cursor` → `.agents` → `.gemini`.
  */
 export function getProjectDirsUpToHome(
   subdir: ClaudeConfigDirectory,
@@ -239,6 +252,7 @@ export function getProjectDirsUpToHome(
   const gitRoot = resolveStopBoundary(cwd)
   let current = resolve(cwd)
   const dirs: string[] = []
+  const roots = projectConfigRootsForSubdir(subdir)
 
   // Traverse from current directory up to git root (or home if not in a git repo)
   while (true) {
@@ -250,18 +264,20 @@ export function getProjectDirsUpToHome(
       break
     }
 
-    const claudeSubdir = join(current, '.claude', subdir)
-    // Filter to existing dirs. This is a perf filter (avoids spawning
-    // ripgrep on non-existent dirs downstream) and the worktree fallback
-    // in loadMarkdownFilesForSubdir relies on it. statSync + explicit error
-    // handling instead of existsSync — re-throws unexpected errors rather
-    // than silently swallowing them. Downstream loadMarkdownFiles handles
-    // the TOCTOU window (dir disappearing before read) gracefully.
-    try {
-      statSync(claudeSubdir)
-      dirs.push(claudeSubdir)
-    } catch (e: unknown) {
-      if (!isFsInaccessible(e)) throw e
+    for (const root of roots) {
+      const harnessSubdir = join(current, root, subdir)
+      // Filter to existing dirs. This is a perf filter (avoids spawning
+      // ripgrep on non-existent dirs downstream) and the worktree fallback
+      // in loadMarkdownFilesForSubdir relies on it. statSync + explicit error
+      // handling instead of existsSync — re-throws unexpected errors rather
+      // than silently swallowing them. Downstream loadMarkdownFiles handles
+      // the TOCTOU window (dir disappearing before read) gracefully.
+      try {
+        statSync(harnessSubdir)
+        dirs.push(harnessSubdir)
+      } catch (e: unknown) {
+        if (!isFsInaccessible(e)) throw e
+      }
     }
 
     // Stop after processing the git root directory - this prevents commands from parent
@@ -300,7 +316,6 @@ export const loadMarkdownFilesForSubdir = memoize(
     cwd: string,
   ): Promise<MarkdownFile[]> {
     const searchStartTime = Date.now()
-    const userDir = join(getClaudeConfigHomeDir(), subdir)
     const managedDir = join(getManagedFilePath(), '.claude', subdir)
     const projectDirs = getProjectDirsUpToHome(subdir, cwd)
 
@@ -309,8 +324,8 @@ export const loadMarkdownFilesForSubdir = memoize(
     // getProjectDirsUpToHome stops at the worktree root (where the .git file is),
     // so it never sees the main repo on its own.
     //
-    // Only add the main repo's copy when the worktree root's .claude/<subdir>
-    // is absent. A standard `git worktree add` checks out the full tree, so the
+    // Only add the main repo's copy when the worktree root's harness/<subdir>
+    // is absent for that harness root. A standard `git worktree add` checks out the full tree, so the
     // worktree already has identical .claude/<subdir> content — loading the main
     // repo's copy too would duplicate every command/agent/skill
     // (anthropics/claude-code#29599, #28182, #26992).
@@ -320,21 +335,36 @@ export const loadMarkdownFilesForSubdir = memoize(
     const gitRoot = findGitRoot(cwd)
     const canonicalRoot = findCanonicalGitRoot(cwd)
     if (gitRoot && canonicalRoot && canonicalRoot !== gitRoot) {
-      const worktreeSubdir = normalizePathForComparison(
-        join(gitRoot, '.claude', subdir),
-      )
-      const worktreeHasSubdir = projectDirs.some(
-        dir => normalizePathForComparison(dir) === worktreeSubdir,
-      )
-      if (!worktreeHasSubdir) {
-        const mainClaudeSubdir = join(canonicalRoot, '.claude', subdir)
-        if (!projectDirs.includes(mainClaudeSubdir)) {
-          projectDirs.push(mainClaudeSubdir)
+      for (const root of projectConfigRootsForSubdir(subdir)) {
+        const worktreeSubdir = normalizePathForComparison(
+          join(gitRoot, root, subdir),
+        )
+        const worktreeHasSubdir = projectDirs.some(
+          dir => normalizePathForComparison(dir) === worktreeSubdir,
+        )
+        if (!worktreeHasSubdir) {
+          const mainHarnessSubdir = join(canonicalRoot, root, subdir)
+          if (!projectDirs.includes(mainHarnessSubdir)) {
+            projectDirs.push(mainHarnessSubdir)
+          }
         }
       }
     }
 
-    const [managedFiles, userFiles, projectFilesNested] = await Promise.all([
+    const userDirCandidates: string[] =
+      isSettingSourceEnabled('userSettings') &&
+      !(subdir === 'agents' && isRestrictedToPluginOnly('agents'))
+        ? subdir === 'skills' || subdir === 'commands'
+          ? [
+              join(getClaudeConfigHomeDir(), subdir),
+              join(homedir(), '.cursor', subdir),
+              join(homedir(), '.agents', subdir),
+              join(homedir(), '.gemini', subdir),
+            ]
+          : [join(getClaudeConfigHomeDir(), subdir)]
+        : []
+
+    const [managedFiles, userFilesNested, projectFilesNested] = await Promise.all([
       // Always load managed (policy settings)
       loadMarkdownFiles(managedDir).then(_ =>
         _.map(file => ({
@@ -343,17 +373,18 @@ export const loadMarkdownFilesForSubdir = memoize(
           source: 'policySettings' as const,
         })),
       ),
-      // Conditionally load user files
-      isSettingSourceEnabled('userSettings') &&
-      !(subdir === 'agents' && isRestrictedToPluginOnly('agents'))
-        ? loadMarkdownFiles(userDir).then(_ =>
+      // Conditionally load user files (Claude home + interoperable tool homes for skills/commands)
+      Promise.all(
+        userDirCandidates.map(userDir =>
+          loadMarkdownFiles(userDir).then(_ =>
             _.map(file => ({
               ...file,
               baseDir: userDir,
               source: 'userSettings' as const,
             })),
-          )
-        : Promise.resolve([]),
+          ),
+        ),
+      ),
       // Conditionally load project files from all directories up to home
       isSettingSourceEnabled('projectSettings') &&
       !(subdir === 'agents' && isRestrictedToPluginOnly('agents'))
@@ -370,6 +401,8 @@ export const loadMarkdownFilesForSubdir = memoize(
           )
         : Promise.resolve([]),
     ])
+
+    const userFiles = userFilesNested.flat()
 
     // Flatten nested project files array
     const projectFiles = projectFilesNested.flat()

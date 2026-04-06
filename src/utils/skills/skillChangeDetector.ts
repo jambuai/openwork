@@ -1,6 +1,7 @@
 import chokidar, { type FSWatcher } from 'chokidar'
+import { homedir } from 'os'
 import * as platformPath from 'path'
-import { getAdditionalDirectoriesForClaudeMd } from '../../bootstrap/state.js'
+import { getAdditionalDirectoriesForClaudeMd, getProjectRoot } from '../../bootstrap/state.js'
 import {
   clearCommandMemoizationCaches,
   clearCommandsCache,
@@ -11,13 +12,15 @@ import {
 } from '../../services/analytics/index.js'
 import {
   clearSkillCaches,
-  getSkillsPath,
   onDynamicSkillsLoaded,
 } from '../../skills/loadSkillsDir.js'
+import { AGENT_PROJECT_CONFIG_ROOTS } from '../agentHarnessRoots.js'
 import { resetSentSkillNames } from '../attachments.js'
 import { registerCleanup } from '../cleanupRegistry.js'
 import { logForDebugging } from '../debug.js'
+import { getClaudeConfigHomeDir } from '../envUtils.js'
 import { getFsImplementation } from '../fsOperations.js'
+import { getProjectDirsUpToHome } from '../markdownConfigLoader.js'
 import { executeConfigChangeHooks, hasBlockingResult } from '../hooks.js'
 import { createSignal } from '../signal.js'
 
@@ -172,66 +175,64 @@ async function getWatchablePaths(): Promise<string[]> {
   const fs = getFsImplementation()
   const paths: string[] = []
 
-  // User skills directory (~/.claude/skills)
-  const userSkillsPath = getSkillsPath('userSettings', 'skills')
-  if (userSkillsPath) {
+  const userSkillDirs = [
+    platformPath.join(getClaudeConfigHomeDir(), 'skills'),
+    platformPath.join(homedir(), '.cursor', 'skills'),
+    platformPath.join(homedir(), '.agents', 'skills'),
+    platformPath.join(homedir(), '.gemini', 'skills'),
+  ]
+  for (const d of userSkillDirs) {
     try {
-      await fs.stat(userSkillsPath)
-      paths.push(userSkillsPath)
+      await fs.stat(d)
+      paths.push(d)
     } catch {
       // Path doesn't exist, skip it
     }
   }
 
-  // User commands directory (~/.claude/commands)
-  const userCommandsPath = getSkillsPath('userSettings', 'commands')
-  if (userCommandsPath) {
+  const userCommandDirs = [
+    platformPath.join(getClaudeConfigHomeDir(), 'commands'),
+    platformPath.join(homedir(), '.cursor', 'commands'),
+    platformPath.join(homedir(), '.agents', 'commands'),
+    platformPath.join(homedir(), '.gemini', 'commands'),
+  ]
+  for (const d of userCommandDirs) {
     try {
-      await fs.stat(userCommandsPath)
-      paths.push(userCommandsPath)
+      await fs.stat(d)
+      paths.push(d)
     } catch {
       // Path doesn't exist, skip it
     }
   }
 
-  // Project skills directory (.claude/skills)
-  const projectSkillsPath = getSkillsPath('projectSettings', 'skills')
-  if (projectSkillsPath) {
-    try {
-      // For project settings, resolve to absolute path
-      const absolutePath = platformPath.resolve(projectSkillsPath)
-      await fs.stat(absolutePath)
-      paths.push(absolutePath)
-    } catch {
-      // Path doesn't exist, skip it
+  const projectRoot = getProjectRoot()
+  for (const sub of ['skills', 'commands'] as const) {
+    for (const dir of getProjectDirsUpToHome(sub, projectRoot)) {
+      const absolutePath = platformPath.resolve(dir)
+      try {
+        await fs.stat(absolutePath)
+        paths.push(absolutePath)
+      } catch {
+        // Path doesn't exist, skip it
+      }
     }
   }
 
-  // Project commands directory (.claude/commands)
-  const projectCommandsPath = getSkillsPath('projectSettings', 'commands')
-  if (projectCommandsPath) {
-    try {
-      // For project settings, resolve to absolute path
-      const absolutePath = platformPath.resolve(projectCommandsPath)
-      await fs.stat(absolutePath)
-      paths.push(absolutePath)
-    } catch {
-      // Path doesn't exist, skip it
-    }
-  }
-
-  // Additional directories (--add-dir) skills
   for (const dir of getAdditionalDirectoriesForClaudeMd()) {
-    const additionalSkillsPath = platformPath.join(dir, '.claude', 'skills')
-    try {
-      await fs.stat(additionalSkillsPath)
-      paths.push(additionalSkillsPath)
-    } catch {
-      // Path doesn't exist, skip it
+    for (const root of AGENT_PROJECT_CONFIG_ROOTS) {
+      for (const sub of ['skills', 'commands'] as const) {
+        const p = platformPath.join(dir, root, sub)
+        try {
+          await fs.stat(p)
+          paths.push(p)
+        } catch {
+          // Path doesn't exist, skip it
+        }
+      }
     }
   }
 
-  return paths
+  return [...new Set(paths)]
 }
 
 function handleChange(path: string): void {
