@@ -6,7 +6,7 @@ ENV_FILE := .env
 
 # OpenWork CLI distribution (same behavior as the curl one-liner; override OPENWORK_* as in README)
 OPENWORK_NPM_PACKAGE ?= @jgabriellima/openwork
-OPENWORK_REPO ?= jgabriellima/openwork
+OPENWORK_REPO ?= jambuai/openwork
 INSTALL_SCRIPT_URL ?= https://raw.githubusercontent.com/$(OPENWORK_REPO)/main/scripts/install-openwork.sh
 OPENWORK_LOCAL_BIN ?= $(HOME)/.local/bin
 OPENWORK_SOURCE_DIR ?= $(HOME)/.openwork-source

@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     }
   } else {
     env.OPENAI_BASE_URL = argBaseUrl || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
-    env.OPENAI_MODEL = argModel || process.env.OPENAI_MODEL || 'gpt-4o'
+    env.OPENAI_MODEL = argModel || process.env.OPENAI_MODEL || 'gpt-5.2'
     const key = sanitizeApiKey(argApiKey || process.env.OPENAI_API_KEY || null)
     if (!key) {
       console.error('OpenAI profile requires a real API key. Use --api-key or set OPENAI_API_KEY.')

@@ -1,5 +1,5 @@
 # OpenWork install (Windows). Run in PowerShell (keep window open).
-#   irm https://raw.githubusercontent.com/jgabriellima/openwork/main/scripts/install-openwork.ps1 | iex
+#   irm https://raw.githubusercontent.com/jambuai/openwork/main/scripts/install-openwork.ps1 | iex
 #
 # Installs the published npm package globally (Node + npm).
 

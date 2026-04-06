@@ -13,7 +13,7 @@ export const OPENWORK_CONFIGURE_PRESETS: OpenWorkConfigurePreset[] = [
     id: 'openai',
     label: 'OpenAI',
     baseUrl: DEFAULT_OPENAI_BASE_URL,
-    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+    models: ['gpt-5.2', 'gpt-5-mini', 'o4-mini'],
     keyHint: 'Create a key at https://platform.openai.com/api-keys',
   },
   {
@@ -34,7 +34,7 @@ export const OPENWORK_CONFIGURE_PRESETS: OpenWorkConfigurePreset[] = [
     id: 'openrouter',
     label: 'OpenRouter',
     baseUrl: 'https://openrouter.ai/api/v1',
-    models: ['openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-2.0-flash-001'],
+    models: ['openai/gpt-5.2', 'anthropic/claude-sonnet-4', 'google/gemini-2.5-pro-preview-03-25'],
     keyHint: 'Keys at https://openrouter.ai/keys',
   },
   {

@@ -180,7 +180,7 @@ export function resolveProviderRequest(options?: {
     options?.model?.trim() ||
     process.env.OPENAI_MODEL?.trim() ||
     options?.fallbackModel?.trim() ||
-    'gpt-4o'
+    'gpt-5.2'
   const descriptor = parseModelDescriptor(requestedModel)
   const rawBaseUrl =
     options?.baseUrl ??

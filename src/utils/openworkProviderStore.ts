@@ -135,7 +135,7 @@ export function saveOpenWorkProviderState(input: {
   }
 }
 
-/** `openai/gpt-4o` → namespace + model id for OpenAI-compatible APIs */
+/** `openai/gpt-5.2` → namespace + model id for OpenAI-compatible APIs */
 export function parseOpenWorkModelToken(
   raw: string | undefined,
 ): { namespace: string; modelId: string } | null {

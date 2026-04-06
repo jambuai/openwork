@@ -5,7 +5,7 @@
  *
  * When CLAUDE_CODE_USE_OPENAI=1, getContextWindowForModel() falls through to
  * MODEL_CONTEXT_WINDOW_DEFAULT (200k). This causes the warning and blocking
- * thresholds to be set at 200k even for models like gpt-4o (128k) or llama3 (8k),
+ * thresholds to be set at 200k even for models with smaller real limits (e.g. local 8k),
  * meaning users get no warning before hitting a hard API error.
  *
  * Prices in tokens as of April 2026 — update as needed.
@@ -13,8 +13,8 @@
 
 const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
   // OpenAI
-  'gpt-4o':                   128_000,
-  'gpt-4o-mini':              128_000,
+  'gpt-5.2':                  1_047_576,
+  'gpt-5-mini':               1_047_576,
   'gpt-4.1':                  1_047_576,
   'gpt-4.1-mini':             1_047_576,
   'gpt-4.1-nano':             1_047_576,
@@ -62,8 +62,8 @@ const OPENAI_CONTEXT_WINDOWS: Record<string, number> = {
  */
 const OPENAI_MAX_OUTPUT_TOKENS: Record<string, number> = {
   // OpenAI
-  'gpt-4o':                   16_384,
-  'gpt-4o-mini':              16_384,
+  'gpt-5.2':                  32_768,
+  'gpt-5-mini':               32_768,
   'gpt-4.1':                  32_768,
   'gpt-4.1-mini':             32_768,
   'gpt-4.1-nano':             32_768,
@@ -117,7 +117,7 @@ function lookupByModel<T>(table: Record<string, T>, model: string): T | undefine
  * Returns undefined if the model is not in the table.
  *
  * Falls back to prefix matching so dated variants like
- * "gpt-4o-2024-11-20" resolve to the base "gpt-4o" entry.
+ * "gpt-5.2-2026-04-01" resolve to the base "gpt-5.2" entry.
  */
 export function getOpenAIContextWindow(model: string): number | undefined {
   return lookupByModel(OPENAI_CONTEXT_WINDOWS, model)

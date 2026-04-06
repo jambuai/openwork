@@ -533,7 +533,7 @@ export function OpenWorkConfigureWizard({
         type: 'input',
         label: 'Other model id',
         value: MODEL_OTHER,
-        description: 'Exact id your API expects (e.g. openai/gpt-4o on OpenRouter)',
+        description: 'Exact id your API expects (e.g. openai/gpt-5.2 on OpenRouter)',
         initialValue: '',
         onChange: v => {
           modelOtherRef.current = v

@@ -28,7 +28,7 @@ export function resolveOpenWorkLlmForUtilities(): {
   const pub = loadOpenWorkPublicConfig()
   const sec = loadOpenWorkSecrets()
   const model =
-    process.env.OPENAI_MODEL?.trim() || pub?.model?.trim() || 'gpt-4o-mini'
+    process.env.OPENAI_MODEL?.trim() || pub?.model?.trim() || 'gpt-5-mini'
   const baseUrlRaw =
     process.env.OPENAI_BASE_URL?.trim() ||
     pub?.baseUrl?.trim() ||

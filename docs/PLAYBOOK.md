@@ -1,215 +1,158 @@
-# OpenWork Local Agent Playbook
+# OpenWork Playbook (repo development)
 
-Practical guide to run OpenWork with a local model (Ollama), work safely, and get strong day-to-day results.
+Practical workflow for running this codebase: wire any **OpenAI Chat Completions–compatible** endpoint, keep machine-local profiles out of git, and debug provider issues with the built-in checks.
 
-## 1. What You Have
+## 1. What you have
 
-- A CLI agent loop that can read/write files, run terminal commands, and help with coding workflows.
-- A local provider profile system (`profile:init` and `dev:profile`).
-- Runtime checks (`doctor:runtime`) and reporting (`doctor:report`).
-- A local model profile currently set to `llama3.1:8b`.
+- A CLI agent loop (file/terminal tools, same UX regardless of backend).
+- Traffic to the model goes through the OpenAI-shaped path: `OPENAI_BASE_URL`, `OPENAI_MODEL`, and usually `OPENAI_API_KEY` (skipped when the host does not require one).
+- Repo-local profiles: `profile:init` writes `.openwork-profile.json`; `dev:profile` loads it and starts the CLI after `doctor:runtime`.
+- Diagnostics: `doctor:runtime`, `doctor:runtime:json`, `doctor:report`, plus `smoke` / `hardening:*` from `package.json`.
 
-## 2. Daily Start (Fast Path)
+Installed-from-npm users typically use `openwork configure` and `~/.openwork/` instead of `.openwork-profile.json`; the environment variables are the same idea.
 
-Run this in your project root:
+## 2. Mental model (one harness, many hosts)
+
+1. Pick a base URL that speaks **Chat Completions** (`…/v1` on most vendors).
+2. Set the model string your host expects.
+3. Set a key when the host requires it; omit or empty for many LAN endpoints.
+
+`profile:init` supports `openai`, `ollama`, `codex`, and `gemini` presets; you can override `--base-url` and `--model` on any run. For a host not covered by a preset, start from `openai` and point `--base-url` at your gateway (OpenRouter, DeepSeek, Azure OpenAI, etc.)—still the same three knobs.
+
+## 3. Daily start
+
+From the repo root:
 
 ```bash
 bun run dev:profile
 ```
 
-For quick switches (write profile, then launch):
+`dev:profile` runs `doctor:runtime` first; if it passes, the CLI starts.
+
+## 4. Creating or switching a profile
+
+Examples (each overwrites `.openwork-profile.json` in the current directory):
 
 ```bash
-bun run profile:init -- --provider ollama --model llama3.2:3b && bun run dev:profile -- ollama --fast --bare
-bun run profile:init -- --provider ollama --model qwen2.5-coder:7b && bun run dev:profile
-```
+# Remote OpenAI-compatible (key required)
+bun run profile:init -- --provider openai --api-key sk-... --model gpt-5.2
 
-If everything is healthy, OpenWork starts directly.
-
-## 3. One-Time Setup (If Needed)
-
-### 3.1 Initialize a local profile
-
-```bash
+# Local OpenAI-compatible (Ollama default /v1; key optional)
 bun run profile:init -- --provider ollama --model llama3.1:8b
+
+# Auto: uses ollama if localhost:11434 responds, otherwise openai (openai still needs a key)
+bun run profile:init
 ```
 
-### 3.2 Confirm profile file
+Other presets shipped in `scripts/provider-bootstrap.ts`:
+
+```bash
+bun run profile:init -- --provider codex --model codexplan
+bun run profile:init -- --provider gemini --api-key ... --model gemini-2.0-flash
+```
+
+Custom base URL (any preset that uses the OpenAI env block):
+
+```bash
+bun run profile:init -- --provider openai --base-url https://api.example.com/v1 --api-key ... --model your-model-id
+```
+
+Inspect what was written:
 
 ```bash
 cat .openwork-profile.json
 ```
 
-### 3.3 Validate environment
+## 5. Health and diagnostics
 
 ```bash
 bun run doctor:runtime
-```
-
-## 4. Health and Diagnostics
-
-### 4.1 Human-readable checks
-
-```bash
-bun run doctor:runtime
-```
-
-### 4.2 JSON diagnostics (automation/logging)
-
-```bash
 bun run doctor:runtime:json
+bun run doctor:report    # writes reports/doctor-runtime.json
 ```
 
-### 4.3 Persist runtime report
+Hardening:
 
 ```bash
-bun run doctor:report
-```
-
-Report output: `reports/doctor-runtime.json`
-
-### 4.4 Hardening checks
-
-```bash
-# practical checks (smoke + runtime doctor)
 bun run hardening:check
-
-# strict checks (includes typecheck)
 bun run hardening:strict
 ```
 
-## 5. Provider Modes
+## 6. Provider modes (what changes in practice)
 
-### 5.1 Local mode (Ollama)
+| Mode | Typical `OPENAI_BASE_URL` | Key |
+|------|---------------------------|-----|
+| Vendor OpenAI API | `https://api.openai.com/v1` | Required (real key; placeholders fail fast) |
+| Another HTTPS Chat Completions host | Vendor URL + `/v1` (or their documented path) | If the vendor requires it |
+| LAN OpenAI-compatible (e.g. Ollama) | `http://localhost:11434/v1` | Often omitted |
+| Codex preset | From `providerConfig` default | `CODEX_API_KEY` or Codex CLI auth file |
+| Gemini preset | (Gemini-specific env in profile file) | `GEMINI_API_KEY` |
 
-```bash
-bun run profile:init -- --provider ollama --model llama3.1:8b
-bun run dev:profile
-```
+`doctor:runtime` treats localhost-style base URLs as “local” for key requirements; remote URLs without a key fail early.
 
-Expected behavior:
-- No API key required.
-- `OPENAI_BASE_URL` should be `http://localhost:11434/v1`.
+## 7. Troubleshooting
 
-### 5.2 OpenAI mode
+### `Script not found "dev"`
 
-```bash
-bun run profile:init -- --provider openai --api-key sk-... --model gpt-4o
-bun run dev:profile
-```
+You are not in the repo root (or deps missing). `cd` to this repository and run `bun install` if needed.
 
-Expected behavior:
-- Real API key required.
-- Placeholder values fail fast.
+### `Provider reachability failed` (HTTP/S to your base URL)
 
-## 6. Troubleshooting Matrix
+- Confirm the URL matches the vendor’s Chat Completions base (trailing `/v1` is common).
+- For a process on your machine: start that process, then re-run `bun run doctor:runtime`.
 
-### 6.1 `Script not found "dev"`
+### `Missing key for non-local provider URL`
 
-Cause: Running command in the wrong folder.
+Remote endpoint without `OPENAI_API_KEY` (or vendor-specific key). Add a real key via `profile:init` or env.
 
-Fix:
-```bash
-cd /path/to/openwork
-bun run dev:profile
-```
+### Placeholder / fake key rejected
 
-### 6.2 `ollama: command not found`
+Replace with a real key for that host. Local profiles should keep a localhost base URL if you intend no cloud key.
 
-Cause: Ollama not installed or not in PATH.
+### Codex / Gemini preset errors
 
-Fix: Install from https://ollama.com/download, then:
-```bash
-ollama --version
-```
+Those paths have extra requirements (see errors from `profile:init`—e.g. Codex auth file or Gemini API key). Fix credentials, then `bun run doctor:runtime`.
 
-### 6.3 `Provider reachability failed` for localhost
+## 8. Choosing a model (practical)
 
-Cause: Ollama service not running.
+- Tool calling quality matters more than raw benchmark scores for this CLI.
+- Smaller local models are useful for latency experiments; expect weaker tool chains.
+- After changing model, confirm the UI/session shows the new id and run a short task to validate tools.
 
-Fix:
-```bash
-ollama serve
-```
+## 9. Prompt playbook (copy/paste)
 
-Then in another terminal:
-```bash
-bun run doctor:runtime
-```
-
-### 6.4 `Missing key for non-local provider URL`
-
-Cause: `OPENAI_BASE_URL` points to a remote endpoint without a key.
-
-Fix: Re-initialize profile for ollama:
-```bash
-bun run profile:init -- --provider ollama --model llama3.1:8b
-```
-
-### 6.5 Placeholder key error
-
-Cause: Placeholder was used instead of real key.
-
-Fix:
-- For OpenAI: use a real key.
-- For Ollama: no key needed; keep localhost base URL.
-
-## 7. Recommended Local Models
-
-- Fast/general: `llama3.1:8b`
-- Better coding quality (if hardware supports): `qwen2.5-coder:14b`
-- Low-resource fallback: smaller instruct model
-
-Switch model quickly:
-
-```bash
-bun run profile:init -- --provider ollama --model qwen2.5-coder:14b
-bun run dev:profile
-```
-
-Preset-style models (same as `make profile-fast` / `make profile-code`):
-
-```bash
-bun run profile:init -- --provider ollama --model llama3.2:3b
-bun run profile:init -- --provider ollama --model qwen2.5-coder:7b
-```
-
-## 8. Practical Prompt Playbook (Copy/Paste)
-
-### 8.1 Code understanding
+### Code understanding
 
 - "Map this repository architecture and explain the execution flow from entrypoint to tool invocation."
 - "Find the top 5 risky modules and explain why."
 
-### 8.2 Refactoring
+### Refactoring
 
 - "Refactor this module for clarity without behavior change, then run checks and summarize diff impact."
 - "Extract shared logic from duplicated functions and add minimal tests."
 
-### 8.3 Debugging
+### Debugging
 
 - "Reproduce the failure, identify root cause, implement fix, and validate with commands."
 - "Trace this error path and list likely failure points with confidence levels."
 
-### 8.4 Reliability
+### Reliability
 
 - "Add runtime guardrails and fail-fast messages for invalid provider env vars."
 - "Create a diagnostic command that outputs JSON report for CI artifacts."
 
-### 8.5 Review mode
+### Review
 
 - "Do a code review of unstaged changes, prioritize bugs/regressions, and suggest concrete patches."
 
-## 9. Safe Working Rules
+## 10. Safe working rules
 
-- Run `doctor:runtime` before debugging provider issues.
-- Prefer `dev:profile` over manual env edits.
-- Keep `.openwork-profile.json` local (already gitignored).
-- Use `doctor:report` before asking for help so you have a reproducible snapshot.
+- Run `doctor:runtime` before chasing “model weirdness.”
+- Prefer `dev:profile` over hand-editing env in multiple shells.
+- Keep `.openwork-profile.json` local (gitignored); do not commit keys.
+- Capture `doctor:report` when asking someone else to reproduce a provider issue.
 
-## 10. Quick Recovery Checklist
-
-When something breaks, run in order:
+## 11. Recovery checklist
 
 ```bash
 bun run doctor:runtime
@@ -217,31 +160,19 @@ bun run doctor:report
 bun run smoke
 ```
 
-If answers are very slow, check processor mode:
+If you use a local daemon (e.g. Ollama) and the doctor says unreachable: start the daemon, wait until its HTTP endpoint responds, then repeat `doctor:runtime`.
+
+## 12. Command reference
 
 ```bash
-ollama ps
-```
-
-If `PROCESSOR` shows `CPU`, your setup is valid but latency will be higher for large models.
-
-If local model mode is failing:
-
-```bash
-ollama --version
-ollama serve
-bun run doctor:runtime
-bun run dev:profile
-```
-
-## 11. Command Reference
-
-```bash
-# profile
+# profiles (see scripts/provider-bootstrap.ts for all flags)
+bun run profile:init
+bun run profile:init -- --provider openai --api-key sk-... --model gpt-5.2
 bun run profile:init -- --provider ollama --model llama3.1:8b
-bun run profile:init -- --provider openai --api-key sk-... --model gpt-4o
+bun run profile:init -- --provider codex --model codexplan
+bun run profile:init -- --provider gemini --api-key ... --model gemini-2.0-flash
 
-# launch
+# launch (optional: pass profile name / flags after --)
 bun run dev:profile
 bun run dev:profile -- ollama
 bun run dev:profile -- openai
@@ -257,10 +188,8 @@ bun run hardening:check
 bun run hardening:strict
 ```
 
-## 12. Success Criteria
+## 13. Success criteria
 
-Your setup is healthy when:
-
-- `bun run doctor:runtime` passes provider and reachability checks.
-- `bun run dev:profile` opens the CLI normally.
-- Model shown in the UI matches your selected profile model.
+- `bun run doctor:runtime` passes reachability and credential checks for your chosen base URL.
+- `bun run dev:profile` starts the CLI without provider errors.
+- The active model id matches what you configured in the profile.

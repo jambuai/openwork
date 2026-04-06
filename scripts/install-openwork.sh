@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-line (macOS / Linux / Git Bash on Windows):
-#   curl -fsSL https://raw.githubusercontent.com/jgabriellima/openwork/main/scripts/install-openwork.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/jambuai/openwork/main/scripts/install-openwork.sh | bash
 #
 # Installs the published npm package globally (Node + npm only).
 #

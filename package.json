@@ -1,7 +1,7 @@
 {
-  "name": "@jgabriellima/openwork",
+  "name": "@jambuai/openwork",
   "version": "0.2.0",
-  "description": "Agentic coding CLI that works with any OpenAI-compatible LLM — GPT-4o, DeepSeek, Gemini, Ollama, and 200+ models",
+  "description": "Agentic coding CLI that works with any OpenAI-compatible LLM — GPT-5.x, DeepSeek, Gemini, Ollama, and 200+ models",
   "type": "module",
   "bin": {
     "openwork": "./bin/openwork"
@@ -10,6 +10,7 @@
     "bin/",
     "dist/cli.mjs",
     "README.md",
+    "NOTICE",
     "scripts/install-openwork.sh",
     "scripts/install-openwork.ps1"
   ],
@@ -112,11 +113,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jgabriellima/openwork.git"
+    "url": "git+https://github.com/jambuai/openwork.git"
   },
-  "homepage": "https://github.com/jgabriellima/openwork#readme",
+  "homepage": "https://github.com/jambuai/openwork#readme",
   "bugs": {
-    "url": "https://github.com/jgabriellima/openwork/issues"
+    "url": "https://github.com/jambuai/openwork/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -131,5 +132,5 @@
     "ollama",
     "gemini"
   ],
-  "license": "MIT"
+  "license": "UNLICENSED"
 }

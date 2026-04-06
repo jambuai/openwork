@@ -1,94 +1,166 @@
+<div align="center">
+
 # OpenWork
 
-An agentic coding CLI with the **same feature set as Claude Code**. The OpenWork difference is first-class support for **non-Anthropic models** via an OpenAI-compatible API shim (`openaiShim.ts`): GPT-4o, DeepSeek, OpenRouter, Ollama, and other Chat Completions endpoints.
+**Terminal coding agent** — you point it at an **OpenAI-compatible Chat Completions** URL and model, then drive the session from the shell.
+
+GPT-5.2 · DeepSeek · OpenRouter · Ollama · LM Studio · Azure · Groq · 200+ models
+
+<br/>
+
+[![Node.js](https://img.shields.io/badge/node.js-%3E%3D20-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![GitHub](https://img.shields.io/badge/repo-jambuai%2Fopenwork-181717?logo=github)](https://github.com/jambuai/openwork)
+
+<br/>
+
+[Install](#install) · [Configure](#cli-provider-config-openwork) · [Quick start](#quick-start) · [Providers](#provider-examples) · [Docs](#documentation)
+
+</div>
 
 ---
 
-## How It Works
+## At a glance
 
-OpenWork ships a provider shim (`src/services/api/openaiShim.ts`) that sits between the tool orchestration layer and the LLM API:
+| | |
+| :--- | :--- |
+| **What you get** | A REPL-style session with tools, streaming, MCP, slash commands, sub-agents, and memory — as implemented in this tree. |
+| **What you configure** | `OPENAI_BASE_URL` + `OPENAI_MODEL` (or `openwork configure`). Traffic to the model is **Chat Completions**-shaped on the wire. |
+| **How you run it** | `openwork configure` once (optional), then `openwork` in your repo. Keys can live under `~/.openwork/` (encrypted at rest). |
+| **Requirements** | Node **20+** for the published CLI; **Bun** recommended for building from source. |
+
+---
+
+## Table of contents
+
+1. [Using OpenWork](#using-openwork)
+2. [Architecture](#architecture)
+3. [Install](#install)
+4. [CLI provider config (`~/.openwork`)](#cli-provider-config-openwork)
+5. [Quick start](#quick-start)
+6. [Provider examples](#provider-examples)
+7. [Environment variables](#environment-variables)
+8. [Runtime hardening](#runtime-hardening)
+9. [Capabilities & limitations](#capabilities)
+10. [Model quality notes](#model-quality-notes)
+11. [Implementation notes](#implementation-notes)
+12. [Documentation](#documentation)
+13. [Legal notice](#legal-notice)
+
+---
+
+## Using OpenWork
+
+1. **Install** — see [Install](#install); from source is the reliable path if the registry package is missing.
+2. **Point at a model** — run `openwork configure`, or set `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `OPENAI_API_KEY` (when the host requires one). Local stacks (Ollama, LM Studio, etc.) use a LAN URL and often no key.
+3. **Work in a repo** — run `openwork` in the project directory. Use the built-in tools, `/commands`, and MCP the UI exposes; behavior matches what this build ships, not a marketing checklist.
+4. **Read the ops docs** — [PLAYBOOK](docs/PLAYBOOK.md) and [ENVIRONMENT_DICTIONARY](docs/ENVIRONMENT_DICTIONARY.md) for flags, env vars, and failure modes.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+  subgraph UI["Tool orchestration"]
+    T["Bash · Files · Glob · Grep · Web · Agent · MCP · …"]
+  end
+  subgraph Bridge["Compatibility layer"]
+    A["Anthropic-shaped client API"]
+    S["openaiShim.ts"]
+  end
+  subgraph Remote["Your endpoint"]
+    O["OpenAI Chat Completions"]
+    M["Any compatible model"]
+  end
+  T --> A --> S --> O --> M
+```
+
+<details>
+<summary><strong>Plain-text diagram</strong> (same as above, for non-Mermaid viewers)</summary>
 
 ```
-Tool System (Bash, FileRead, FileEdit, Glob, Grep, WebFetch, Agent, MCP…)
-        |
-        v   
+Tool system (Bash, FileRead, FileEdit, Glob, Grep, WebFetch, Agent, MCP…)
+        │
+        ▼
   Anthropic SDK interface (duck-typed)
-        |
-        v
-  openaiShim.ts  ← translates request/response formats
-        |
-        v
+        │
+        ▼
+  openaiShim.ts  ← translates request / response formats
+        │
+        ▼
   OpenAI Chat Completions API
-        |
-        v
+        │
+        ▼
   Any compatible model
 ```
 
-The shim handles:
-- Anthropic message blocks → OpenAI messages
-- Anthropic `tool_use` / `tool_result` → OpenAI function calls
-- OpenAI SSE streaming → Anthropic stream events
-- Anthropic system prompt arrays → OpenAI system messages
+</details>
 
-The rest of the stack is unaware a different model is running underneath.
+The shim covers:
+
+| Direction | Responsibility |
+| :--- | :--- |
+| **Upstream** | Anthropic message blocks → OpenAI messages; system prompt arrays → system messages |
+| **Tools** | `tool_use` / `tool_result` ↔ function calls |
+| **Stream** | OpenAI SSE → Anthropic-style stream events |
 
 ---
 
 ## Install
 
-Published package: **`@jgabriellima/openwork`**. The **unscoped** name `openwork` on npm is a **different** project — do not use `npm install -g openwork` for this repository.
+> **Package name:** `@jgabriellima/openwork`  
+> The **unscoped** npm name `openwork` is a **different project** — do not use `npm install -g openwork` for this repository.
 
-### Option A: npm global (recommended)
+> **npm registry:** If `npm install` returns **404**, the scoped package may not be published yet. Use **[from source](#option-c--from-source-contributors--bleeding-edge)** or publish via your release workflow, then retry.
 
-Requires [Node.js 20+](https://nodejs.org/) (includes npm):
+### Option A — npm global
+
+Requires [Node.js 20+](https://nodejs.org/):
 
 ```bash
 npm install -g @jgabriellima/openwork@latest
 ```
 
-Then run `openwork configure` once (see below). If `openwork` is not found, add your npm global bin directory to `PATH` (the one-line installer below can do that for you).
+Then run `openwork configure` once. If `openwork` is not on your `PATH`, add your npm global bin directory (the one-line installer below can append it idempotently).
 
-### Option B: One-line installer (npm by default)
+### Option B — one-line installer (npm by default)
 
-By default the script runs **`npm install -g @jgabriellima/openwork@latest`** and, if needed, appends your **npm global bin** to `PATH` in your shell rc (idempotent marker). **Node + npm only** — no Git or Bun.
+Runs `npm install -g @jgabriellima/openwork@latest` and, when needed, appends your **npm global bin** to `PATH` in your shell rc (marked idempotently). **Node + npm only** — no Git or Bun required on the target machine.
 
-**macOS / Linux / Git Bash (Windows):**
+**macOS / Linux / Git Bash (Windows)**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jgabriellima/openwork/main/scripts/install-openwork.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jambuai/openwork/main/scripts/install-openwork.sh | bash
 ```
 
-**Windows (PowerShell)** — keep the window open (do not double‑click):
+**Windows (PowerShell)** — run in an open terminal (do not double-click):
 
 ```powershell
-irm https://raw.githubusercontent.com/jgabriellima/openwork/main/scripts/install-openwork.ps1 | iex
+irm https://raw.githubusercontent.com/jambuai/openwork/main/scripts/install-openwork.ps1 | iex
 ```
 
-Environment variables:
-
 | Variable | Effect |
-|----------|--------|
-| `OPENWORK_NPM_PACKAGE` | Override package (default `@jgabriellima/openwork`). |
-| `OPENWORK_NPM_TAG` | Dist-tag (default `latest`). |
-| `OPENWORK_SKIP_PATH_HOOK=1` | Do not edit shell rc / user PATH. |
-| `OPENWORK_PAUSE=1` | Wait for Enter before exit (helps if the window closes too fast). |
+| :--- | :--- |
+| `OPENWORK_NPM_PACKAGE` | Override package (default `@jgabriellima/openwork`) |
+| `OPENWORK_NPM_TAG` | Dist-tag (default `latest`) |
+| `OPENWORK_SKIP_PATH_HOOK=1` | Do not edit shell rc / user `PATH` |
+| `OPENWORK_PAUSE=1` | Wait for Enter before exit (useful if the window closes too fast) |
 
-If the terminal **closes immediately**, open a real shell, paste the command, or use `OPENWORK_PAUSE=1` (bash) / `$env:OPENWORK_PAUSE=1` (PowerShell).
-
-### Option C: From source (contributors / bleeding edge)
+### Option C — from source (contributors / bleeding edge)
 
 ```bash
-git clone https://github.com/jgabriellima/openwork.git
+git clone https://github.com/jambuai/openwork.git
 cd openwork
 bun install
 bun run build
 node dist/cli.mjs --version
 ```
 
-### Option D: Run directly with Bun (development)
+### Option D — Bun dev loop
 
 ```bash
-git clone https://github.com/jgabriellima/openwork.git
+git clone https://github.com/jambuai/openwork.git
 cd openwork
 bun install
 bun run dev
@@ -98,56 +170,54 @@ bun run dev
 
 1. Bump `"version"` in `package.json` on `main` and push.
 2. Tag and push, e.g. `git tag v0.2.0 && git push origin v0.2.0` (tag should match the release version).
-3. GitHub → **Releases** → create a release from that tag and **publish** it. The workflow [Publish npm](.github/workflows/publish-npm.yml) runs `npm publish` using the `NPM_TOKEN` secret (npm [Automation token](https://www.npmjs.com/settings/~/tokens)).
-4. Manual publish from `main`: Actions → **Publish npm** → **Run workflow** (same secret; version is whatever is in `package.json` on `main`).
+3. GitHub → **Releases** → create a release from that tag and publish it. The workflow [Publish npm](.github/workflows/publish-npm.yml) runs `npm publish` with the `NPM_TOKEN` secret ([Automation token](https://www.npmjs.com/settings/~/tokens)).
+4. Manual publish from `main`: Actions → **Publish npm** → **Run workflow** (version follows `package.json` on `main`).
 
-`workflow_dispatch` only runs on `refs/heads/main` so ad-hoc publishes stay predictable.
+`workflow_dispatch` is restricted to `refs/heads/main` so ad-hoc publishes stay predictable.
 
 ---
 
 ## CLI provider config (`~/.openwork`)
 
-### Interactive setup (recommended for distribution)
+### Interactive setup (recommended)
 
-After install, run once:
+After install:
 
 ```bash
 openwork configure
 ```
 
-Alias: `openwork setup`. You pick a preset (OpenAI, Ollama, DeepSeek, OpenRouter, or custom URL), model, and API key; everything is saved under `~/.openwork/` with the API key encrypted at rest. No project `.env` required.
+Alias: `openwork setup`. You choose a preset (OpenAI, Ollama, DeepSeek, OpenRouter, or custom URL), model, and API key. Configuration is stored under `~/.openwork/` with the API key **encrypted at rest**. No project `.env` is required for basic use.
 
 ### Advanced: one-shot flags
 
-Instead of exporting secrets in every shell, you can pass provider flags once. OpenWork strips them from `process.argv` during bootstrap (so they do not reach the main Commander parser) and persists settings under **`~/.openwork/`**:
+Flags can be passed once at bootstrap; OpenWork strips them from `process.argv` before the main Commander parser and persists settings under **`~/.openwork/`**:
 
 | File | Contents |
-|------|----------|
-| `provider.json` | `model`, `baseUrl` (chmod `0600`) |
-| `credentials.enc` | `OPENAI`-style API key, **AES-256-GCM** at rest (chmod `0600`) |
-| `.key` | Random 32-byte key used only to encrypt `credentials.enc` (chmod `0600`) |
+| :--- | :--- |
+| `provider.json` | `model`, `baseUrl` (`chmod 0600`) |
+| `credentials.enc` | API key material, **AES-256-GCM** at rest (`chmod 0600`) |
+| `.key` | Random 32-byte key used only for `credentials.enc` (`chmod 0600`) |
 
-**Security model:** this is **not** a password vault. Anyone who can read your user account (or backups) can decrypt the files. It **does** prevent accidental `git commit` of keys and avoids keeping the API key in project-level `.env`. Prefer OS full-disk encryption. Passing `--apiKey=…` on the command line may still expose the secret in shell history and in short-lived `ps` listings—after the first save, run plain `openwork` so the key is read only from disk.
-
-**Examples:**
+**Security model:** this is **not** a general-purpose secrets vault. Anyone with access to your user account (or backups) can decrypt these files. It **does** reduce accidental `git commit` of keys and avoids scattering secrets in project `.env`. Prefer full-disk encryption. Passing `--apiKey=…` may leave traces in shell history and short-lived `ps` listings — after the first save, prefer plain `openwork` so keys are read from disk only.
 
 ```bash
-# Namespaced model: openai → default https://api.openai.com/v1 ; ollama/local → http://localhost:11434/v1
-openwork --model openai/gpt-4o --baseUrl= --apiKey=sk-...
+# Namespaced model: openai → default https://api.openai.com/v1 ; ollama → http://localhost:11434/v1
+openwork --model openai/gpt-5.2 --baseUrl= --apiKey=sk-...
 
 # Kebab-case aliases are equivalent
 openwork --model ollama/llama3.1:8b --base-url http://localhost:11434/v1 --api-key ""
 ```
 
-Use `--model namespace/model` so OpenWork knows you are configuring the OpenAI shim; a plain `--model sonnet` is left for Claude Code / Anthropic as usual.
+Use `--model namespace/model` so OpenWork treats the session as OpenAI-shim configuration; a bare `--model sonnet` remains on the Anthropic path.
 
-**Later runs:** if `~/.openwork` exists, OpenWork sets `CLAUDE_CODE_USE_OPENAI=1` and merges saved model/base URL/key into the environment. To use Anthropic-only for a session, skip the store: `OPENWORK_SKIP_STORE=1 openwork`. To remove the profile: `rm -rf ~/.openwork`.
+**Later runs:** if `~/.openwork` exists, OpenWork sets `CLAUDE_CODE_USE_OPENAI=1` and merges saved model / base URL / key into the environment. For Anthropic-only for one session: `OPENWORK_SKIP_STORE=1 openwork`. To remove the profile: `rm -rf ~/.openwork`.
 
 ---
 
-## Quick Start
+## Quick start
 
-### 1. Configure provider
+### 1. Configure
 
 ```bash
 openwork configure
@@ -164,7 +234,7 @@ openwork
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_API_KEY=sk-your-key-here
-export OPENAI_MODEL=gpt-4o
+export OPENAI_MODEL=gpt-5.2
 openwork
 ```
 
@@ -172,35 +242,41 @@ From source: `bun run dev` or `node dist/cli.mjs` after `bun run build`.
 
 ---
 
-## Provider Examples
+## Provider examples
 
-### OpenAI
+<details>
+<summary><strong>OpenAI</strong></summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_API_KEY=sk-...
-export OPENAI_MODEL=gpt-4o
+export OPENAI_MODEL=gpt-5.2
 ```
 
-### Codex via ChatGPT auth
+</details>
 
-`codexplan` maps to GPT-5.4 on the Codex backend with high reasoning.
+<details>
+<summary><strong>Codex</strong> (ChatGPT auth)</summary>
+
+`codexplan` maps to GPT-5.4 on the Codex backend with high reasoning.  
 `codexspark` maps to GPT-5.3 Codex Spark for faster loops.
 
-OpenWork reads `~/.codex/auth.json` automatically if it exists. Override with
-`CODEX_AUTH_JSON_PATH` or `CODEX_API_KEY`.
+OpenWork reads `~/.codex/auth.json` when present. Override with `CODEX_AUTH_JSON_PATH` or `CODEX_API_KEY`.
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_MODEL=codexplan
 
-# optional if ~/.codex/auth.json is not present
+# Optional if ~/.codex/auth.json is missing
 export CODEX_API_KEY=...
 
 openwork
 ```
 
-### DeepSeek
+</details>
+
+<details>
+<summary><strong>DeepSeek</strong></summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
@@ -209,7 +285,10 @@ export OPENAI_BASE_URL=https://api.deepseek.com/v1
 export OPENAI_MODEL=deepseek-chat
 ```
 
-### Google Gemini (via OpenRouter)
+</details>
+
+<details>
+<summary><strong>Google Gemini</strong> (via OpenRouter)</summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
@@ -218,7 +297,10 @@ export OPENAI_BASE_URL=https://openrouter.ai/api/v1
 export OPENAI_MODEL=google/gemini-2.0-flash
 ```
 
-### Ollama (local, free)
+</details>
+
+<details>
+<summary><strong>Ollama</strong> (local)</summary>
 
 ```bash
 ollama pull llama3.3:70b
@@ -226,10 +308,13 @@ ollama pull llama3.3:70b
 export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_BASE_URL=http://localhost:11434/v1
 export OPENAI_MODEL=llama3.3:70b
-# no API key needed for local models
+# No API key for typical local setups
 ```
 
-### LM Studio (local)
+</details>
+
+<details>
+<summary><strong>LM Studio</strong></summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
@@ -237,7 +322,10 @@ export OPENAI_BASE_URL=http://localhost:1234/v1
 export OPENAI_MODEL=your-model-name
 ```
 
-### Together AI
+</details>
+
+<details>
+<summary><strong>Together AI</strong></summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
@@ -246,7 +334,10 @@ export OPENAI_BASE_URL=https://api.together.xyz/v1
 export OPENAI_MODEL=meta-llama/Llama-3.3-70B-Instruct-Turbo
 ```
 
-### Groq
+</details>
+
+<details>
+<summary><strong>Groq</strong></summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
@@ -255,7 +346,10 @@ export OPENAI_BASE_URL=https://api.groq.com/openai/v1
 export OPENAI_MODEL=llama-3.3-70b-versatile
 ```
 
-### Mistral
+</details>
+
+<details>
+<summary><strong>Mistral</strong></summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
@@ -264,143 +358,141 @@ export OPENAI_BASE_URL=https://api.mistral.ai/v1
 export OPENAI_MODEL=mistral-large-latest
 ```
 
-### Azure OpenAI
+</details>
+
+<details>
+<summary><strong>Azure OpenAI</strong></summary>
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
 export OPENAI_API_KEY=your-azure-key
 export OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/deployments/your-deployment/v1
-export OPENAI_MODEL=gpt-4o
+export OPENAI_MODEL=gpt-5.2
 ```
+
+</details>
 
 ---
 
-## Environment Variables
+## Environment variables
 
 | Variable | Required | Description |
-|----------|----------|-------------|
-| `CLAUDE_CODE_USE_OPENAI` | Yes | Set to `1` to enable the OpenAI provider |
-| `OPENAI_API_KEY` | Yes* | Your API key (*not needed for local models like Ollama) |
-| `OPENAI_MODEL` | Yes | Model name (e.g. `gpt-4o`, `deepseek-chat`, `llama3.3:70b`) |
-| `OPENAI_BASE_URL` | No | API endpoint (defaults to `https://api.openai.com/v1`) |
-| `CODEX_API_KEY` | Codex only | Codex/ChatGPT access token override |
-| `CODEX_AUTH_JSON_PATH` | Codex only | Path to a Codex CLI `auth.json` file |
-| `CODEX_HOME` | Codex only | Alternative Codex home directory (`auth.json` will be read from here) |
+| :--- | :---: | :--- |
+| `CLAUDE_CODE_USE_OPENAI` | Yes | Set to `1` to enable the OpenAI provider path |
+| `OPENAI_API_KEY` | Yes* | API key (*omit for many local providers) |
+| `OPENAI_MODEL` | Yes | Model id (e.g. `gpt-5.2`, `deepseek-chat`, `llama3.3:70b`) |
+| `OPENAI_BASE_URL` | No | Endpoint (default `https://api.openai.com/v1`) |
+| `CODEX_API_KEY` | Codex | Token override |
+| `CODEX_AUTH_JSON_PATH` | Codex | Path to Codex CLI `auth.json` |
+| `CODEX_HOME` | Codex | Codex home directory (`auth.json` resolved from here) |
 
-`ANTHROPIC_MODEL` can also override the model name; `OPENAI_MODEL` takes priority.
+`ANTHROPIC_MODEL` can also influence model selection; `OPENAI_MODEL` takes priority when the shim is active.
 
 ---
 
-## Runtime Hardening
+## Runtime hardening
 
 ```bash
-# quick startup sanity check
-bun run smoke
-
-# validate provider env + reachability
-bun run doctor:runtime
-
-# print machine-readable runtime diagnostics
-bun run doctor:runtime:json
-
-# persist a diagnostics report to reports/doctor-runtime.json
-bun run doctor:report
-
-# full local hardening check (typecheck + smoke + runtime doctor)
-bun run hardening:check
-
-# strict hardening (includes project-wide typecheck)
-bun run hardening:strict
+bun run smoke                    # quick startup sanity check
+bun run doctor:runtime           # validate provider env + reachability
+bun run doctor:runtime:json      # machine-readable diagnostics
+bun run doctor:report            # write reports/doctor-runtime.json
+bun run hardening:check          # smoke + runtime doctor
+bun run hardening:strict         # project typecheck + hardening:check
 ```
 
-Notes:
-- `doctor:runtime` fails fast if `CLAUDE_CODE_USE_OPENAI=1` with a placeholder key or missing key for non-local providers.
-- Local providers (e.g. `http://localhost:11434/v1`) run without `OPENAI_API_KEY`.
-- Codex profiles validate `CODEX_API_KEY` or the Codex CLI auth file and probe `POST /responses` instead of `GET /models`.
+- `doctor:runtime` fails fast on `CLAUDE_CODE_USE_OPENAI=1` with placeholder or missing keys for non-local providers.
+- Local URLs (e.g. `http://localhost:11434/v1`) skip `OPENAI_API_KEY`.
+- Codex profiles require `CODEX_API_KEY` or Codex CLI auth and probe `POST /responses` instead of `GET /models`.
 
-### Provider launch (repo dev only)
+### Provider launch (repo development only)
 
-End-user configuration is `openwork configure` or env vars — see above. For **working from this repository**, you can write `.openwork-profile.json` and launch via `provider-launch.ts`:
+End users rely on `openwork configure` or env vars. From **this** repository you can use `.openwork-profile.json` and `provider-launch.ts`:
 
 ```bash
-# one-time profile bootstrap (auto-detect ollama, otherwise openai)
 bun run profile:init
-
-# examples: codex / openai / ollama with explicit options
 bun run profile:init -- --provider codex --model codexplan
 bun run profile:init -- --provider openai --api-key sk-...
 bun run profile:init -- --provider ollama --model llama3.1:8b
 
-# launch using .openwork-profile.json (optional: pick provider + flags after --)
 bun run dev:profile
 bun run dev:profile -- ollama
 bun run dev:profile -- ollama --fast --bare
 ```
 
-`dev:profile` runs `doctor:runtime` first and only starts the CLI if checks pass.
+`dev:profile` runs `doctor:runtime` first and starts the CLI only if checks pass.
 
 ---
 
 ## Capabilities
 
-- **Tools**: Bash, FileRead, FileWrite, FileEdit, Glob, Grep, WebFetch, WebSearch, Agent, MCP, LSP, NotebookEdit, Tasks
-- **Streaming**: Real-time token streaming
-- **Tool calling**: Multi-step tool chains
-- **Images**: Base64 and URL images passed to vision models
-- **Slash commands**: /commit, /review, /compact, /diff, /doctor, etc.
-- **Sub-agents**: AgentTool spawns sub-agents using the same provider
-- **Memory**: Persistent memory system
+| Area | Details |
+| :--- | :--- |
+| **Tools** | Bash, FileRead, FileWrite, FileEdit, Glob, Grep, WebFetch, WebSearch, Agent, MCP, LSP, NotebookEdit, Tasks |
+| **Streaming** | Real-time token streaming |
+| **Tool calling** | Multi-step chains |
+| **Vision** | Base64 and URL images for vision-capable models |
+| **Slash commands** | `/commit`, `/review`, `/compact`, `/diff`, `/doctor`, … |
+| **Sub-agents** | `AgentTool` uses the same configured provider |
+| **Memory** | Persistent memory system |
 
-## Known Limitations
+### Known limitations
 
-- **No thinking mode**: Extended thinking is an Anthropic-specific feature; OpenAI models use different reasoning approaches
-- **No prompt caching**: Anthropic-specific cache headers are skipped
-- **No beta features**: Anthropic-specific beta headers are ignored
-- **Token limits**: Defaults to 32K max output — some models cap lower, handled gracefully
+- **No extended thinking mode** — Anthropic-specific; other models use their own reasoning patterns.
+- **No prompt caching** — Anthropic cache headers are not applied on the OpenAI path.
+- **No Anthropic beta headers** — ignored for compatibility.
+- **Output limits** — defaults favor a 32K ceiling; smaller model limits are handled gracefully.
 
 ---
 
-## Model Quality Notes
+## Model quality notes
 
-| Model | Tool Calling | Code Quality | Speed |
-|-------|-------------|-------------|-------|
-| GPT-4o | Excellent | Excellent | Fast |
+| Model | Tool calling | Code quality | Speed |
+| :--- | :---: | :---: | :---: |
+| GPT-5.2 | Excellent | Excellent | Fast |
 | DeepSeek-V3 | Great | Great | Fast |
-| Gemini 2.0 Flash | Great | Good | Very Fast |
+| Gemini 2.0 Flash | Great | Good | Very fast |
 | Llama 3.3 70B | Good | Good | Medium |
 | Mistral Large | Good | Good | Fast |
-| GPT-4o-mini | Good | Good | Very Fast |
+| GPT-5-mini | Good | Good | Very fast |
 | Qwen 2.5 72B | Good | Good | Medium |
-| Smaller models (<7B) | Limited | Limited | Very Fast |
+| Smaller models (&lt;7B) | Limited | Limited | Very fast |
 
-For best results, use models with strong function/tool calling support.
+Prefer models with **strong function / tool-calling** support for reliable agent behavior.
 
 ---
 
-## Files Changed from Original
+## Implementation notes
 
-```
-src/services/api/openaiShim.ts   — NEW: OpenAI-compatible API shim (724 lines)
-src/services/api/client.ts       — Routes to shim when CLAUDE_CODE_USE_OPENAI=1
-src/utils/model/providers.ts     — Added 'openai' provider type
-src/utils/model/configs.ts       — Added openai model mappings
-src/utils/model/model.ts         — Respects OPENAI_MODEL for defaults
-src/utils/auth.ts                — Recognizes OpenAI as valid 3P provider
-```
+Where the **Chat Completions** backend is wired in this tree (useful if you’re debugging provider issues):
 
-6 files changed. 786 lines added. Zero dependencies added.
+| File | Role |
+| :--- | :--- |
+| `src/services/api/openaiShim.ts` | OpenAI-compatible shim (~724 lines): translation + streaming |
+| `src/services/api/client.ts` | Routes to the shim when `CLAUDE_CODE_USE_OPENAI=1` |
+| `src/utils/model/providers.ts` | `openai` provider type |
+| `src/utils/model/configs.ts` | OpenAI model mappings |
+| `src/utils/model/model.ts` | `OPENAI_MODEL` defaults |
+| `src/utils/auth.ts` | Treats OpenAI as a valid third-party provider |
+
+*Rough footprint when the OpenAI-shaped path was integrated: a small set of files under `src/services/api/` and model helpers; count is indicative, not a feature list.*
 
 ---
 
 ## Documentation
 
-| Doc | Description |
-|-----|-------------|
-| [docs/PLAYBOOK.md](docs/PLAYBOOK.md) | Daily workflow, provider modes, troubleshooting matrix |
-| [docs/ENVIRONMENT_DICTIONARY.md](docs/ENVIRONMENT_DICTIONARY.md) | Complete reference for all environment variables and config keys |
+| Document | Purpose |
+| :--- | :--- |
+| [docs/PLAYBOOK.md](docs/PLAYBOOK.md) | Daily workflow, provider modes, troubleshooting |
+| [docs/ENVIRONMENT_DICTIONARY.md](docs/ENVIRONMENT_DICTIONARY.md) | Environment variables and config keys |
 
 ---
 
-## License
+## Legal notice
 
-MIT
+This project is **not** released under MIT or any other open-source license by
+the maintainers. The tree may include **partial or derived** material; the
+maintainers **do not claim ownership** of that material and **do not grant**
+you rights to use, modify, or redistribute it. See **[NOTICE](NOTICE)** for the
+full statement. If you need certainty, get legal advice before using or
+shipping anything from this repository.
