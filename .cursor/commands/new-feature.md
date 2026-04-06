@@ -1,9 +1,9 @@
 ---
-description: New feature — branch, implementation, and Changesets for release
+description: New feature — free-form context, branch, implementation, Changesets
 ---
 
-The user supplies a **short feature description** (what to build / why it ships).
+The user message is **`new-feature`** plus **arbitrary context**: description, commands to run, comments, issue/PR numbers, URLs, pasted specs, or references.
 
-1. Read and follow the project skill: `.cursor/skills/new-feature/SKILL.md`.
-2. Derive the git branch slug and the changeset changelog line from that description.
-3. If the description is too vague to branch or to choose patch vs minor vs major, ask **one** clarifying question first; otherwise execute the skill workflow (branch → implement → changeset → validate).
+1. Read and follow `.cursor/skills/new-feature/SKILL.md` end-to-end.
+2. Use the **entire** user payload after `new-feature` to name the branch, set scope, and write the changeset summary.
+3. Ask **one** clarifying question only if branching or semver choice would otherwise be a guess; otherwise execute: branch → implement → changeset → validate.

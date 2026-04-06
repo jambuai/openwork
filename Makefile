@@ -1,6 +1,6 @@
 .PHONY: setup install build start dev doctor smoke check clean \
 	openwork-install openwork-install-remote openwork-uninstall openwork-purge \
-	claude claude-revert
+	claude claude-revert release release-push publish
 
 ENV_FILE := .env
 
@@ -95,6 +95,44 @@ profile-code:
 clean:
 	rm -rf dist reports
 
+# ── Release (Changesets) ─────────────────────────────────────────────────────────
+#
+# make release       → scripts/make-release-main.sh: checkout main, pull, merge starting branch
+#                      into main (if not main), then build + version bump + chore/version-packages PR.
+#   Run from your feature branch: changesets can live there; they are merged into main before build.
+#   Env: RELEASE_MERGE=auto|merge|admin|open; RELEASE_BASE_BRANCH=main; RELEASE_SKIP_FEATURE_MERGE=1 to skip merge
+#   After merge to main, .github/workflows/release.yml publishes to npm if NPM_TOKEN is set.
+#
+# make release-push  → bump + commit + push current branch only (no PR, no branch switch).
+#
+# make publish       → build, `changeset publish` (npm + tag), push --follow-tags (local escape hatch).
+
+release:
+	bash scripts/make-release-main.sh
+
+release-push:
+	@echo "→ build"
+	bun run build
+	@echo "→ changeset version (bump package.json + CHANGELOG, consume .changeset/*)"
+	bun run version-packages
+	git add package.json CHANGELOG.md .changeset
+	@if git diff --cached --quiet; then \
+		echo ""; \
+		echo "No version changes staged. Add a changeset first: bunx changeset"; \
+		echo "(or commit/remove stale .changeset files if the bump already ran)."; \
+		exit 1; \
+	fi
+	git commit -m "chore: version packages"
+	git push origin HEAD
+
+publish:
+	@echo "→ build"
+	bun run build
+	@echo "→ changeset publish (npm + release tag)"
+	bunx changeset publish
+	@echo "→ push commits and tags (if any)"
+	git push origin HEAD --follow-tags
+
 help:
 	@echo ""
 	@echo "Usage: make <target>"
@@ -121,4 +159,8 @@ help:
 	@echo "  profile-code    Init coding profile (qwen2.5-coder:7b)"
 	@echo ""
 	@echo "  clean           Remove dist/ and reports/"
+	@echo ""
+	@echo "  release         main + version bump + gh PR + merge (needs gh; see Makefile header)"
+	@echo "  release-push    version bump + push current branch only (no PR)"
+	@echo "  publish         changeset publish (npm + tag) + git push --follow-tags"
 	@echo ""

@@ -16,6 +16,7 @@ import { getOriginalCwd, getSessionId } from '../../bootstrap/state.js'
 import { checkStatsigFeatureGate_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import type { AnyObject, Tool, ToolPermissionContext } from '../../Tool.js'
 import { FILE_READ_TOOL_NAME } from '../../tools/FileReadTool/prompt.js'
+import { AGENT_PROJECT_CONFIG_ROOTS } from '../agentHarnessRoots.js'
 import { getCwd } from '../cwd.js'
 import { getClaudeConfigHomeDir } from '../envUtils.js'
 import {
@@ -92,7 +93,8 @@ export function normalizeCaseForComparison(path: string): string {
 }
 
 /**
- * If filePath is inside a .claude/skills/{name}/ directory (project or global),
+ * If filePath is inside a project or global harness skills directory
+ * (e.g. `.claude/skills/{name}/`, `.cursor/skills/…`, `.agents`, `.gemini`),
  * return the skill name and a session-allow pattern scoped to just that skill.
  * Used to offer a narrower "allow edits to this skill only" option in the
  * permission dialog and SDK suggestions, so iterating on one skill doesn't
@@ -104,16 +106,18 @@ export function getClaudeSkillScope(
   const absolutePath = expandPath(filePath)
   const absolutePathLower = normalizeCaseForComparison(absolutePath)
 
-  const bases = [
-    {
-      dir: expandPath(join(getOriginalCwd(), '.claude', 'skills')),
-      prefix: '/.claude/skills/',
-    },
-    {
-      dir: expandPath(join(homedir(), '.claude', 'skills')),
-      prefix: '~/.claude/skills/',
-    },
-  ]
+  const bases: { dir: string; prefix: string }[] = []
+  for (const root of AGENT_PROJECT_CONFIG_ROOTS) {
+    const segment = `${root}/skills/`
+    bases.push({
+      dir: expandPath(join(getOriginalCwd(), root, 'skills')),
+      prefix: `/${segment}`,
+    })
+    bases.push({
+      dir: expandPath(join(homedir(), root, 'skills')),
+      prefix: `~/${segment}`,
+    })
+  }
 
   for (const { dir, prefix } of bases) {
     const dirLower = normalizeCaseForComparison(dir)
@@ -227,18 +231,17 @@ function isClaudeConfigFilePath(filePath: string): boolean {
     return true
   }
 
-  // Check if file is within .claude/commands or .claude/agents directories
+  // Check if file is within harness commands/agents/skills directories
   // using proper path segment validation (not string matching with includes())
   // pathInWorkingPath now handles case-insensitive comparison to prevent bypasses
-  const commandsDir = join(getOriginalCwd(), '.claude', 'commands')
-  const agentsDir = join(getOriginalCwd(), '.claude', 'agents')
-  const skillsDir = join(getOriginalCwd(), '.claude', 'skills')
-
-  return (
-    pathInWorkingPath(filePath, commandsDir) ||
-    pathInWorkingPath(filePath, agentsDir) ||
-    pathInWorkingPath(filePath, skillsDir)
-  )
+  for (const root of AGENT_PROJECT_CONFIG_ROOTS) {
+    for (const sub of ['commands', 'agents', 'skills'] as const) {
+      if (pathInWorkingPath(filePath, join(getOriginalCwd(), root, sub))) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 // Check if file is the plan file for the current session

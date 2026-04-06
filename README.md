@@ -113,12 +113,15 @@ bun run dev
 
 ### Publishing (maintainers)
 
-1. Bump `"version"` in `package.json` on `main` and push.
-2. Tag and push, e.g. `git tag v0.2.0 && git push origin v0.2.0` (tag should match the release version).
-3. GitHub → **Releases** → create a release from that tag and publish it. The workflow [Publish npm](.github/workflows/publish-npm.yml) runs `npm publish` with the `NPM_TOKEN` secret ([Automation token](https://www.npmjs.com/settings/~/tokens)).
-4. Manual publish from `main`: Actions → **Publish npm** → **Run workflow** (version follows `package.json` on `main`).
+**Default (automated):** [Changesets](https://github.com/changesets/changesets) drives releases via [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
-`workflow_dispatch` is restricted to `refs/heads/main` so ad-hoc publishes stay predictable.
+1. Ship user-facing work with a `.changeset/` file per PR (`bunx changeset` before merge).
+2. Pushes to `main` open or update the **“chore: version packages”** PR (`CHANGELOG.md` + `package.json` version).
+3. Merging that PR runs **`npm publish`** (`prepack` runs the build) and creates a **GitHub Release**. The published tarball includes `README.md`, `CHANGELOG.md`, and other paths listed under `package.json` → `files`.
+
+**Why `npm publish` locally at the same version fails:** the public registry **never accepts a republish** of an existing version (e.g. `0.2.0`). The next version comes from the version PR, not from hand-editing `package.json` to “refresh the README”.
+
+**Escape hatch:** GitHub Actions → [Manual npm publish](.github/workflows/publish-npm.yml) → **Run workflow** on `main` with a `package.json` **version that does not already exist** on npm. Requires the `NPM_TOKEN` secret ([Automation token](https://www.npmjs.com/settings/~/tokens)).
 
 ---
 

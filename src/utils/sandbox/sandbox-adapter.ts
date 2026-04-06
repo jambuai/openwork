@@ -29,6 +29,7 @@ import {
   getCwdState,
   getOriginalCwd,
 } from '../../bootstrap/state.js'
+import { AGENT_PROJECT_CONFIG_ROOTS } from '../agentHarnessRoots.js'
 import { logForDebugging } from '../debug.js'
 import { expandPath } from '../path.js'
 import { getPlatform, type Platform } from '../platform.js'
@@ -244,14 +245,17 @@ export function convertToSandboxRuntimeConfig(
     denyWrite.push(resolve(cwd, '.claude', 'settings.local.json'))
   }
 
-  // Block writes to .claude/skills in both original and current working directories.
+  // Block writes to project skills trees in both original and current working directories.
   // The sandbox-runtime's getDangerousDirectories() protects .claude/commands and
   // .claude/agents but not .claude/skills. Skills have the same privilege level
   // (auto-discovered, auto-loaded, full Claude capabilities) so they need the
-  // same OS-level sandbox protection.
-  denyWrite.push(resolve(originalCwd, '.claude', 'skills'))
-  if (cwd !== originalCwd) {
-    denyWrite.push(resolve(cwd, '.claude', 'skills'))
+  // same OS-level sandbox protection — including interoperable harness paths
+  // (.cursor, .agents, .gemini) that OpenWork loads with the same format.
+  for (const root of AGENT_PROJECT_CONFIG_ROOTS) {
+    denyWrite.push(resolve(originalCwd, root, 'skills'))
+    if (cwd !== originalCwd) {
+      denyWrite.push(resolve(cwd, root, 'skills'))
+    }
   }
 
   // SECURITY: Git's is_git_directory() treats cwd as a bare repo if it has
