@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- 958bf05: Main Structural Improvements
+
 ## 0.3.0
 
 ### Minor Changes
