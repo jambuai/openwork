@@ -65,11 +65,20 @@ Requires [Node.js 20+](https://nodejs.org/):
 npm install -g @jambulab/openwork@latest
 ```
 
-Then run `openwork configure` once. If `openwork` is not on your `PATH`, add your npm global bin directory (the one-line installer below can append it idempotently).
+Use your normal user (**no `sudo`**). Then run `openwork configure` once. If `openwork` is not on your `PATH`, add your npm global bin directory (`npm bin -g`) or use the one-line installer below, which can append it idempotently.
 
 ### Option B — one-line installer (npm by default)
 
 Runs `npm install -g @jambulab/openwork@latest` and, when needed, appends your **npm global bin** to `PATH` in your shell rc (marked idempotently). **Node + npm only** — no Git or Bun required on the target machine.
+
+**End users — copy/paste as-is**
+
+- **Do not use `sudo`** in front of `curl` or `npm install -g`. Sudo installs the CLI for root’s npm prefix and can leave root-owned files in `~/.npm`, which breaks later installs and makes `openwork` missing from your normal terminal’s `PATH`.
+- After install, **open a new terminal tab/window** (or run `source ~/.zshrc` / `source ~/.bashrc`) so `PATH` picks up the hook.
+- If npm prints `EACCES` or “root-owned files” under `~/.npm`, fix once then re-run the installer **without** sudo:
+  ```bash
+  sudo chown -R "$(whoami)" ~/.npm ~/.npm-global
+  ```
 
 **macOS / Linux / Git Bash (Windows)**
 
@@ -90,6 +99,7 @@ irm https://raw.githubusercontent.com/jambuai/openwork/main/scripts/install-open
 | `OPENWORK_NPM_TAG`          | Dist-tag (default `latest`)                                       |
 | `OPENWORK_SKIP_PATH_HOOK=1` | Do not edit shell rc / user `PATH`                                |
 | `OPENWORK_PAUSE=1`          | Wait for Enter before exit (useful if the window closes too fast) |
+| `OPENWORK_ALLOW_ROOT=1`     | Allow running the shell installer as root (CI only; not for end users) |
 
 
 ### Option C — from source (contributors / bleeding edge)
